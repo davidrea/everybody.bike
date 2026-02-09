@@ -28,7 +28,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("riders")
     .select(
-      "id, first_name, last_name, date_of_birth, group_id, groups(id, name, color), rider_parents(parent_id, profiles:parent_id(id, full_name))",
+      "id, first_name, last_name, date_of_birth, group_id, groups(id, name, color), rider_parents(parent_id, relationship, is_primary, profiles:parent_id(id, full_name, email))",
     )
     .order("last_name")
     .order("first_name");
@@ -38,11 +38,23 @@ export async function GET() {
   }
 
   type GroupRow = { id: string; name: string; color: string } | null;
-  type ParentRow = { parent_id: string; profiles: { id: string; full_name: string } };
+  type ParentRow = {
+    parent_id: string;
+    relationship: "parent" | "guardian" | "emergency_contact";
+    is_primary: boolean;
+    profiles: { id: string; full_name: string; email: string | null };
+  };
 
   const riders = (data ?? []).map((r) => {
     const group = r.groups as unknown as GroupRow;
-    const parents = r.rider_parents as unknown as ParentRow[];
+    const parents = (r.rider_parents as unknown as ParentRow[]).slice();
+    parents.sort((a, b) => {
+      if (a.is_primary === b.is_primary) {
+        return a.profiles.full_name.localeCompare(b.profiles.full_name);
+      }
+      return a.is_primary ? -1 : 1;
+    });
+
     return {
       id: r.id,
       first_name: r.first_name,
@@ -54,6 +66,9 @@ export async function GET() {
       parents: parents.map((rp) => ({
         id: rp.profiles.id,
         full_name: rp.profiles.full_name,
+        email: rp.profiles.email,
+        relationship: rp.relationship,
+        is_primary: rp.is_primary,
       })),
     };
   });

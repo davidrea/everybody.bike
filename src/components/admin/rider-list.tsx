@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAdminRiders, useUpdateRiderGroup } from "@/hooks/use-admin-riders";
 import { useGroups } from "@/hooks/use-groups";
+import { useUsers } from "@/hooks/use-users";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -20,13 +24,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RiderAdultLinksDialog } from "./rider-adult-links-dialog";
 
 export function RiderList() {
   const { data: riders, isLoading: ridersLoading } = useAdminRiders();
   const { data: groups, isLoading: groupsLoading } = useGroups();
+  const { data: adults } = useUsers();
   const updateGroup = useUpdateRiderGroup();
+  const [managingRiderId, setManagingRiderId] = useState<string | null>(null);
 
   const isLoading = ridersLoading || groupsLoading;
+  const managingRider =
+    riders?.find((rider) => rider.id === managingRiderId) ?? null;
 
   async function handleGroupChange(riderId: string, groupId: string) {
     try {
@@ -58,6 +67,7 @@ export function RiderList() {
             <TableHead>Date of Birth</TableHead>
             <TableHead>Group</TableHead>
             <TableHead>Parents</TableHead>
+            <TableHead className="w-28">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -100,6 +110,15 @@ export function RiderList() {
                   {rider.parents.map((p) => (
                     <Badge key={p.id} variant="outline" className="text-xs">
                       {p.full_name}
+                      {p.is_primary ? (
+                        <>
+                          <span
+                            className="ml-1 inline-block h-2 w-2 rounded-full bg-sky-500"
+                            aria-hidden="true"
+                          />
+                          <span className="sr-only">Primary</span>
+                        </>
+                      ) : null}
                     </Badge>
                   ))}
                   {rider.parents.length === 0 && (
@@ -107,12 +126,22 @@ export function RiderList() {
                   )}
                 </div>
               </TableCell>
+              <TableCell>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setManagingRiderId(rider.id)}
+                >
+                  <Link2 className="mr-1 h-4 w-4" />
+                  Manage
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
           {riders?.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={4}
+                colSpan={5}
                 className="py-8 text-center text-muted-foreground"
               >
                 No minor riders found.
@@ -121,6 +150,13 @@ export function RiderList() {
           )}
         </TableBody>
       </Table>
+
+      <RiderAdultLinksDialog
+        open={!!managingRider}
+        onOpenChange={(open) => !open && setManagingRiderId(null)}
+        rider={managingRider}
+        adults={adults}
+      />
     </div>
   );
 }
