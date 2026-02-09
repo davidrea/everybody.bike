@@ -12,6 +12,8 @@ import { Bike, Mail, KeyRound, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [showOtp, setShowOtp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -78,8 +80,32 @@ export default function LoginPage() {
     } else {
       setMessage({
         type: "success",
-        text: "Check your email for a magic link to sign in.",
+        text: "Check your email for a magic link or 6-digit code to sign in.",
       });
+      setShowOtp(true);
+    }
+
+    setLoading(false);
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email || !otp) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: "email",
+    });
+
+    if (error) {
+      setMessage({ type: "error", text: error.message });
+    } else {
+      setMessage({ type: "success", text: "Signed in successfully." });
+      window.location.replace("/");
     }
 
     setLoading(false);
@@ -167,6 +193,32 @@ export default function LoginPage() {
                 Send magic link
               </Button>
             </form>
+
+            {showOtp && (
+              <form onSubmit={handleVerifyCode} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="otp">6-digit code</Label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    placeholder="123456"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading || otp.length !== 6}>
+                  {loading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="mr-2 h-4 w-4" />
+                  )}
+                  Verify code
+                </Button>
+              </form>
+            )}
 
             <div className="relative">
               <Separator />
