@@ -220,6 +220,17 @@ Environment variables are managed via `.env` files (not committed; `.env.example
 
 ---
 
+## Recent Updates (2026-02-09)
+
+- Added configurable base URL helper (`src/lib/url.ts`) and wired invite/resend redirect generation to prefer env + forwarded headers.
+- Added OTP code entry on login for email OTP verification.
+- Local Supabase Auth email links now use custom templates so links point to `{{ .SiteURL }}` (supports Cloudflare tunnel domain).
+- Magic link + invite email templates include explicit expiry duration + timestamp metadata.
+- `otp_expiry` set to 12 hours in local `supabase/config.toml`.
+- Auth email sender set to `Everybody.Bike <admin@everybody.bike>` in `supabase/config.toml` (SMTP block present; enable as needed).
+
+---
+
 ## Database Schema (Baseline)
 
 ### Tables
@@ -580,10 +591,10 @@ npm run format
 ### Phase 3 — Notifications & PWA
 - [x] PWA manifest + icons + theme metadata.
 - [ ] Service worker + offline cache.
-- [ ] Web Push subscription management.
-- [ ] Notification scheduling + targeting.
-- [ ] Notification preferences UI.
-- [ ] Admin notifications UI (schedule/send).
+- [x] Web Push subscription management.
+- [x] Notification scheduling + targeting.
+- [x] Notification preferences UI.
+- [x] Admin notifications UI (schedule/send).
 
 ### Phase 4 — Polish & Testing
 - [ ] Comprehensive test suite (unit, integration, e2e).
@@ -591,6 +602,19 @@ npm run format
 - [x] Dark mode.
 - [ ] Performance optimization.
 - [ ] Security hardening and audit.
+
+---
+
+## Recent Updates (Feb 9, 2026)
+
+- Events list now splits Upcoming vs Past, with past events visually muted.
+- Admin RSVP overrides and clears are blocked for past events (UI + API guard).
+- Event dashboard now shows RSVP lists for events without groups (no-group fallback).
+- Passkey WebAuthn now derives RP ID/origin from request headers for tunnels; env can override.
+- Added passkey management: name on registration, list/rename/remove in Profile, and API endpoints.
+- Passkey credentials store bytea public keys correctly; login updates `last_used_at`.
+- Added dev-only overwrite toggle for passkey registration (`NEXT_PUBLIC_WEBAUTHN_ALLOW_OVERWRITE_DEV`).
+- Configured Supabase Auth SMTP for Mailgun; email sending still blocked pending Mailgun domain verification/allowed sender domain.
 
 ---
 
