@@ -34,7 +34,11 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Public routes that don't require authentication
-  const publicPaths = ["/login", "/auth/callback"];
+  const publicPaths = [
+    "/login",
+    "/auth/callback",
+    "/api/admin/notifications/dispatch",
+  ];
   const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   // If not authenticated and not on a public path, redirect to login
