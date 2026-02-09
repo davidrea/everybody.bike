@@ -28,7 +28,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("riders")
     .select(
-      "id, first_name, last_name, date_of_birth, group_id, groups(id, name, color), rider_parents(parent_id, relationship, is_primary, profiles:parent_id(id, full_name, email))",
+      "id, first_name, last_name, date_of_birth, group_id, groups(id, name, color), rider_parents(parent_id, relationship, is_primary, profiles:parent_id(id, full_name, email, medical_alerts, media_opt_out))",
     )
     .order("last_name")
     .order("first_name");
@@ -42,7 +42,13 @@ export async function GET() {
     parent_id: string;
     relationship: "parent" | "guardian" | "emergency_contact";
     is_primary: boolean;
-    profiles: { id: string; full_name: string; email: string | null };
+    profiles: {
+      id: string;
+      full_name: string;
+      email: string | null;
+      medical_alerts: string | null;
+      media_opt_out: boolean;
+    };
   };
 
   const riders = (data ?? []).map((r) => {
@@ -67,6 +73,8 @@ export async function GET() {
         id: rp.profiles.id,
         full_name: rp.profiles.full_name,
         email: rp.profiles.email,
+        medical_alerts: rp.profiles.medical_alerts,
+        media_opt_out: rp.profiles.media_opt_out,
         relationship: rp.relationship,
         is_primary: rp.is_primary,
       })),

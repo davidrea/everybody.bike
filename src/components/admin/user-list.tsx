@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { InviteForm } from "./invite-form";
 import { AdultEditor } from "./adult-editor";
+import { SafetyIndicators } from "@/components/safety/safety-indicators";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -199,7 +200,15 @@ export function UserList() {
           <TableBody>
             {users?.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.full_name}</TableCell>
+                <TableCell className="font-medium">
+                  <span className="inline-flex items-center gap-2">
+                    <span>{user.full_name}</span>
+                    <SafetyIndicators
+                      medicalAlerts={user.medical_alerts}
+                      mediaOptOut={user.media_opt_out}
+                    />
+                  </span>
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {user.email}
                 </TableCell>

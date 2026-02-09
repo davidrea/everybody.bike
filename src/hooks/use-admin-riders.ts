@@ -19,6 +19,8 @@ export interface AdminRider {
     id: string;
     full_name: string;
     email: string | null;
+    medical_alerts: string | null;
+    media_opt_out: boolean;
     relationship: RiderParentRelationship;
     is_primary: boolean;
   }[];

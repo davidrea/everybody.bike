@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RiderAdultLinksDialog } from "./rider-adult-links-dialog";
+import { SafetyIndicators } from "@/components/safety/safety-indicators";
 
 export function RiderList() {
   const { data: riders, isLoading: ridersLoading } = useAdminRiders();
@@ -110,6 +111,12 @@ export function RiderList() {
                   {rider.parents.map((p) => (
                     <Badge key={p.id} variant="outline" className="text-xs">
                       {p.full_name}
+                      <SafetyIndicators
+                        medicalAlerts={p.medical_alerts}
+                        mediaOptOut={p.media_opt_out}
+                        className="ml-1"
+                        iconClassName="h-3 w-3"
+                      />
                       {p.is_primary ? (
                         <>
                           <span

@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SafetyIndicators } from "@/components/safety/safety-indicators";
 
 const relationshipOptions: {
   value: RiderParentRelationship;
@@ -268,7 +269,13 @@ export default function ProfilePage() {
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <CardTitle>{profile.full_name}</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <span>{profile.full_name}</span>
+                      <SafetyIndicators
+                        medicalAlerts={profile.medical_alerts}
+                        mediaOptOut={profile.media_opt_out}
+                      />
+                    </CardTitle>
                     <p className="text-sm text-muted-foreground">{profile.email}</p>
                   </div>
                 </div>
@@ -540,7 +547,15 @@ function RiderConnectionCard({
       <div className="flex items-start justify-between rounded-md border p-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
-            {rider.first_name} {rider.last_name}
+            <span className="inline-flex items-center gap-2">
+              <span>
+                {rider.first_name} {rider.last_name}
+              </span>
+              <SafetyIndicators
+                medicalAlerts={rider.medical_alerts}
+                mediaOptOut={rider.media_opt_out}
+              />
+            </span>
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {rider.group_name ?? "No group"} · {rider.relationship}

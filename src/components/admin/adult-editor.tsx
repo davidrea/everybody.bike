@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SafetyIndicators } from "@/components/safety/safety-indicators";
 
 const roleLabels: Record<string, string> = {
   super_admin: "Super Admin",
@@ -222,7 +223,15 @@ export function AdultEditor({
         <DialogHeader>
           <DialogTitle>Edit Adult</DialogTitle>
           <DialogDescription>
-            {user.full_name} ({user.email})
+            <span className="inline-flex items-center gap-2">
+              <span>
+                {user.full_name} ({user.email})
+              </span>
+              <SafetyIndicators
+                medicalAlerts={user.medical_alerts}
+                mediaOptOut={user.media_opt_out}
+              />
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -502,7 +511,15 @@ function AdminRiderSafetyCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
-            {rider.first_name} {rider.last_name}
+            <span className="inline-flex items-center gap-2">
+              <span>
+                {rider.first_name} {rider.last_name}
+              </span>
+              <SafetyIndicators
+                medicalAlerts={rider.medical_alerts}
+                mediaOptOut={rider.media_opt_out}
+              />
+            </span>
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {rider.group_name ?? "No group"} · {rider.relationship}
