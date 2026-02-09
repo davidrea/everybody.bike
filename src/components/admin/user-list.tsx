@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, RotateCw, Shield } from "lucide-react";
+import { UserPlus, RotateCw, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useUsers, useInviteUser, useResendInvite, useUpdateUserRoles } from "@/hooks/use-users";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InviteForm } from "./invite-form";
-import { RoleEditor } from "./role-editor";
+import { AdultEditor } from "./adult-editor";
 import type { InviteFormValues } from "@/lib/validators";
 import type { Profile } from "@/types";
 
@@ -73,7 +73,6 @@ export function UserList() {
         userId: editingUser.id,
         values: { roles: roles as InviteFormValues["roles"] },
       });
-      toast.success("Roles updated");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update roles",
@@ -150,9 +149,10 @@ export function UserList() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setEditingUser(user)}
-                      title="Edit roles"
+                      title="Manage adult"
+                      aria-label={`Manage ${user.full_name}`}
                     >
-                      <Shield className="h-4 w-4" />
+                      <Settings className="h-4 w-4" />
                     </Button>
                     {user.invite_status === "pending" && (
                       <Button
@@ -191,12 +191,13 @@ export function UserList() {
       />
 
       {editingUser && (
-        <RoleEditor
+        <AdultEditor
+          key={editingUser.id}
           open={!!editingUser}
           onOpenChange={(open) => !open && setEditingUser(null)}
           user={editingUser}
-          onSubmit={handleUpdateRoles}
-          isPending={updateRoles.isPending}
+          onSubmitRoles={handleUpdateRoles}
+          isSavingRoles={updateRoles.isPending}
         />
       )}
     </>
