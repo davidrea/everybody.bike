@@ -72,6 +72,9 @@ export default function LoginPage() {
       email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          auth_email_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        },
       },
     });
 

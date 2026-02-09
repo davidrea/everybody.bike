@@ -30,6 +30,10 @@
             </tr>
             <tr>
               <td style="padding:8px 28px 20px 28px;">
+                <p style="margin:0 0 8px 0;font-size:12px;color:#64748b;line-height:1.5;">
+                  This link expires in 12 hours.
+                  {{ if .Data.auth_email_expires_at }}Expires at {{ .Data.auth_email_expires_at }} UTC.{{ end }}
+                </p>
                 <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
                   If the button doesn’t work, copy and paste this link into your browser:
                   <br />

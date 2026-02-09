@@ -52,10 +52,12 @@ export async function POST(request: Request) {
   }
 
   const callbackUrl = new URL("/auth/callback", getBaseUrl(request)).toString();
+  const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
   const { error } = await supabase.auth.signInWithOtp({
     email: targetProfile.email,
     options: {
       emailRedirectTo: callbackUrl,
+      data: { auth_email_expires_at: expiresAt },
       shouldCreateUser: false,
     },
   });

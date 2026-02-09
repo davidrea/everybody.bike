@@ -56,10 +56,11 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const callbackUrl = new URL("/auth/callback", getBaseUrl(request)).toString();
+  const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
     email,
     {
-      data: { full_name },
+      data: { full_name, auth_email_expires_at: expiresAt },
       redirectTo: callbackUrl,
     },
   );

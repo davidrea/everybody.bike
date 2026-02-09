@@ -220,17 +220,17 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+otp_expiry = 43200
 
 # Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+[auth.email.smtp]
+enabled = true
+host = "smtp.mailgun.org"
+port = 587
+user = "env(MAILGUN_SMTP_USER)"
+pass = "env(MAILGUN_SMTP_PASS)"
+admin_email = "admin@everybody.bike"
+sender_name = "Everybody.Bike"
 
 # Customize invite email template so local auth links use SiteURL instead of 127.0.0.1
 [auth.email.template.invite]
