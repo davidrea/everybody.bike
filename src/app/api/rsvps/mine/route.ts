@@ -30,13 +30,24 @@ export async function GET(request: Request) {
     .is("rider_id", null)
     .maybeSingle();
 
-  // Minor rider RSVPs by this parent
-  const { data: minorRsvps } = await supabase
-    .from("rsvps")
-    .select("*, riders:rider_id(id, first_name, last_name)")
-    .eq("event_id", eventId)
-    .eq("user_id", user.id)
-    .not("rider_id", "is", null);
+  // Minor rider RSVPs for any rider linked to this parent
+  const { data: riderLinks } = await supabase
+    .from("rider_parents")
+    .select("rider_id")
+    .eq("parent_id", user.id);
+
+  const riderIds = (riderLinks ?? [])
+    .map((link) => link.rider_id)
+    .filter(Boolean);
+
+  const { data: minorRsvps } = riderIds.length
+    ? await supabase
+        .from("rsvps")
+        .select("*, riders:rider_id(id, first_name, last_name)")
+        .eq("event_id", eventId)
+        .in("rider_id", riderIds)
+        .not("rider_id", "is", null)
+    : { data: [] };
 
   return NextResponse.json({
     selfRsvp,

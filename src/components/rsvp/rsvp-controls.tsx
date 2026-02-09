@@ -234,23 +234,50 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
           {myRiders.map((rider) => {
             // Find existing RSVP for this rider (could be from any parent)
             const riderRsvp = myRsvps?.minorRsvps?.find(
-              (r) => r.rider_id === rider.id,
+              (r) => r.rider_id === rider.rider_id,
             );
             return (
               <div
-                key={rider.id}
-                className="flex items-center justify-between gap-4"
+                key={rider.rider_id}
+                className="flex flex-wrap items-center justify-between gap-2"
               >
                 <span className="text-sm">
                   {rider.first_name} {rider.last_name}
                 </span>
-                <RsvpButtonGroup
-                  currentStatus={
-                    (riderRsvp?.status as RsvpStatus) ?? null
-                  }
-                  onSelect={(status) => handleRsvp(status, rider.id)}
-                  disabled={submitRsvp.isPending || clearRsvp.isPending}
-                />
+                <div className="flex items-center gap-2">
+                  <RsvpButtonGroup
+                    currentStatus={
+                      (riderRsvp?.status as RsvpStatus) ?? null
+                    }
+                    onSelect={(status) => handleRsvp(status, rider.rider_id)}
+                    disabled={submitRsvp.isPending || clearRsvp.isPending}
+                  />
+                  {riderRsvp && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-muted-foreground"
+                      onClick={() => {
+                        clearRsvp.mutate(
+                          { event_id: eventId, rider_id: rider.rider_id },
+                          {
+                            onSuccess: () => toast.success("RSVP cleared"),
+                            onError: (err) =>
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Failed to clear RSVP",
+                              ),
+                          },
+                        );
+                      }}
+                      disabled={submitRsvp.isPending || clearRsvp.isPending}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}
