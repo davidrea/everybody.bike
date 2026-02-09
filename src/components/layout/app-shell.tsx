@@ -10,8 +10,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Header />
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 pb-20 md:pb-0">
-          <div className="mx-auto max-w-4xl px-4 py-6">{children}</div>
+        <main className="min-w-0 flex-1 overflow-x-clip pb-20 md:pb-0">
+          <div className="mx-auto w-full max-w-4xl px-4 py-6">{children}</div>
         </main>
       </div>
       <BottomNav />

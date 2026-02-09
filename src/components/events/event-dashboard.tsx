@@ -166,21 +166,23 @@ export function EventDashboard({ eventId }: { eventId: string }) {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="overview">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="roll_models">
-              Roll Models
-              <Badge variant="secondary" className="ml-1.5">
-                {dashboard.counts.confirmed_roll_models}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="riders">
-              Riders
-              <Badge variant="secondary" className="ml-1.5">
-                {dashboard.counts.confirmed_riders}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
+          <div className="-mx-1 overflow-x-auto px-1 no-scrollbar">
+            <TabsList className="min-w-max">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="roll_models">
+                Roll Models
+                <Badge variant="secondary" className="ml-1.5">
+                  {dashboard.counts.confirmed_roll_models}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="riders">
+                Riders
+                <Badge variant="secondary" className="ml-1.5">
+                  {dashboard.counts.confirmed_riders}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="overview" className="space-y-4 pt-4">
             {/* Roll Models Summary */}
