@@ -54,6 +54,8 @@ interface AdultEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: Profile;
+  onSubmitName: (fullName: string) => Promise<void>;
+  isSavingName: boolean;
   onSubmitRoles: (roles: string[]) => Promise<void>;
   isSavingRoles: boolean;
 }
@@ -62,12 +64,15 @@ export function AdultEditor({
   open,
   onOpenChange,
   user,
+  onSubmitName,
+  isSavingName,
   onSubmitRoles,
   isSavingRoles,
 }: AdultEditorProps) {
   const { hasRole } = useAuth();
   const isSuperAdmin = hasRole("super_admin");
 
+  const [fullName, setFullName] = useState(user.full_name);
   const [selectedRoles, setSelectedRoles] = useState<string[]>(user.roles);
 
   const [firstName, setFirstName] = useState("");
@@ -84,6 +89,9 @@ export function AdultEditor({
   );
   const createRider = useCreateAdminUserRider();
   const unlinkRider = useUnlinkAdminUserRider();
+
+  const canSaveName =
+    fullName.trim().length > 0 && fullName.trim() !== user.full_name;
 
   const canSaveRoles = useMemo(
     () =>
@@ -105,6 +113,15 @@ export function AdultEditor({
       toast.success("Roles updated");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update roles");
+    }
+  }
+
+  async function handleSaveName() {
+    try {
+      await onSubmitName(fullName.trim());
+      toast.success("Name updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update name");
     }
   }
 
@@ -163,6 +180,29 @@ export function AdultEditor({
         </DialogHeader>
 
         <div className="space-y-6">
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Profile</h3>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor={`adult-full-name-${user.id}`}>Full Name</Label>
+                <Input
+                  id={`adult-full-name-${user.id}`}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Full name"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveName}
+                disabled={!canSaveName || isSavingName}
+              >
+                {isSavingName ? "Saving..." : "Save Name"}
+              </Button>
+            </div>
+          </section>
+
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Roles</h3>
             <div className="grid gap-2 sm:grid-cols-2">

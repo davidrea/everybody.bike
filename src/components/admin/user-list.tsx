@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { UserPlus, RotateCw, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useUsers, useInviteUser, useResendInvite, useUpdateUserRoles, useDeleteUser } from "@/hooks/use-users";
+import {
+  useUsers,
+  useInviteUser,
+  useResendInvite,
+  useUpdateUserRoles,
+  useDeleteUser,
+  useUpdateUserName,
+} from "@/hooks/use-users";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +60,7 @@ export function UserList() {
   const inviteUser = useInviteUser();
   const resendInvite = useResendInvite();
   const updateRoles = useUpdateUserRoles();
+  const updateName = useUpdateUserName();
   const deleteUser = useDeleteUser();
 
   const [showInvite, setShowInvite] = useState(false);
@@ -90,6 +98,21 @@ export function UserList() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update roles",
+      );
+      throw err;
+    }
+  }
+
+  async function handleUpdateName(fullName: string) {
+    if (!editingUser) return;
+    try {
+      await updateName.mutateAsync({
+        userId: editingUser.id,
+        fullName,
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update name",
       );
       throw err;
     }
@@ -231,6 +254,8 @@ export function UserList() {
           open={!!editingUser}
           onOpenChange={(open) => !open && setEditingUser(null)}
           user={editingUser}
+          onSubmitName={handleUpdateName}
+          isSavingName={updateName.isPending}
           onSubmitRoles={handleUpdateRoles}
           isSavingRoles={updateRoles.isPending}
         />
