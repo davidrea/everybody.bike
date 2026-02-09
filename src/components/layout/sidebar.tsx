@@ -18,7 +18,7 @@ export function Sidebar() {
   const { isAdmin } = useAuth();
 
   return (
-    <aside className="hidden md:flex w-56 flex-col border-r bg-background px-3 py-4">
+    <aside className="hidden md:flex w-56 flex-col border-r bg-background px-3 py-4 print:hidden">
       <nav className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);

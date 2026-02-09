@@ -75,6 +75,8 @@ export interface DashboardRollModel {
   id: string;
   full_name: string;
   avatar_url: string | null;
+  medical_alerts: string | null;
+  media_opt_out: boolean;
   assigned_group_id: string | null;
   assigned_group_name: string | null;
 }
@@ -87,6 +89,8 @@ export interface DashboardRiderEntry {
   group_name: string;
   is_minor: boolean;
   status: string | null;
+  medical_alerts: string | null;
+  media_opt_out: boolean;
 }
 
 export interface EventDashboardData {

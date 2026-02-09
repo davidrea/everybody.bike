@@ -33,12 +33,20 @@ export async function GET(
   // 2. Get roll models assigned to these groups
   let rmGroupRows: {
     roll_model_id: string;
-    profiles: { id: string; full_name: string; avatar_url: string | null } | null;
+    profiles: {
+      id: string;
+      full_name: string;
+      avatar_url: string | null;
+      medical_alerts: string | null;
+      media_opt_out: boolean;
+    } | null;
   }[] = [];
   if (groupIds.length) {
     const { data } = await supabase
       .from("roll_model_groups")
-      .select("roll_model_id, profiles:roll_model_id(id, full_name, avatar_url)")
+      .select(
+        "roll_model_id, profiles:roll_model_id(id, full_name, avatar_url, medical_alerts, media_opt_out)",
+      )
       .in("group_id", groupIds);
     rmGroupRows = (data as typeof rmGroupRows) ?? [];
   }
@@ -46,7 +54,13 @@ export async function GET(
   // Deduplicate roll models (may coach multiple event groups)
   const rmMap = new Map<
     string,
-    { id: string; full_name: string; avatar_url: string | null }
+    {
+      id: string;
+      full_name: string;
+      avatar_url: string | null;
+      medical_alerts: string | null;
+      media_opt_out: boolean;
+    }
   >();
   rmGroupRows.forEach((row) => {
     const rm = row.profiles;
@@ -62,11 +76,13 @@ export async function GET(
     first_name: string;
     last_name: string;
     group_id: string | null;
+    medical_notes: string | null;
+    media_opt_out: boolean;
   }[] = [];
   if (groupIds.length) {
     const { data } = await supabase
       .from("riders")
-      .select("id, first_name, last_name, group_id")
+      .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
       .in("group_id", groupIds);
     minorRiders = (data as typeof minorRiders) ?? [];
   }
@@ -77,11 +93,13 @@ export async function GET(
     full_name: string;
     avatar_url: string | null;
     rider_group_id: string | null;
+    medical_alerts: string | null;
+    media_opt_out: boolean;
   }[] = [];
   if (groupIds.length) {
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, avatar_url, rider_group_id")
+      .select("id, full_name, avatar_url, rider_group_id, medical_alerts, media_opt_out")
       .in("rider_group_id", groupIds)
       .contains("roles", ["rider"]);
     adultRiders = (data as typeof adultRiders) ?? [];
@@ -115,7 +133,13 @@ export async function GET(
   const groupNameById = new Map(groups.map((group) => [group.id, group.name]));
 
   const buildRollModelWithAssignment = (
-    rm: { id: string; full_name: string; avatar_url: string | null },
+    rm: {
+      id: string;
+      full_name: string;
+      avatar_url: string | null;
+      medical_alerts: string | null;
+      media_opt_out: boolean;
+    },
     assignedGroupId: string | null,
   ) => ({
     ...rm,
@@ -170,6 +194,8 @@ export async function GET(
         group_name: g.name,
         is_minor: true,
         status: (riderRsvpMap.get(r.id) ?? null) as string | null,
+        medical_alerts: r.medical_notes,
+        media_opt_out: r.media_opt_out,
       }));
 
     const groupAdults = adultRiders
@@ -182,6 +208,8 @@ export async function GET(
         group_name: g.name,
         is_minor: false,
         status: (selfRsvpMap.get(r.id)?.status ?? null) as string | null,
+        medical_alerts: r.medical_alerts,
+        media_opt_out: r.media_opt_out,
       }));
 
     const allRiders = [...groupMinors, ...groupAdults];

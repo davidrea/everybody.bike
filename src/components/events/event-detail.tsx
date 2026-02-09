@@ -13,6 +13,7 @@ import {
   ExternalLink,
   CloudSun,
   CalendarClock,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -101,6 +102,12 @@ export function EventDetail({ eventId }: { eventId: string }) {
 
           {admin && (
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/events/${eventId}/report`}>
+                  <Printer className="mr-1 h-4 w-4" />
+                  Print report
+                </Link>
+              </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/events/${eventId}/edit`}>
                   <Pencil className="mr-1 h-4 w-4" />
