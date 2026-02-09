@@ -117,45 +117,47 @@ export function DashboardGroupSection({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Riders
             </p>
-            {confirmed.length > 0 && (
-              <RiderList
-                label="Rider Confirmed"
-                items={confirmed}
-                color="text-green-600 dark:text-green-400"
-                currentStatus="yes"
-                onAdminRsvp={onAdminRsvp}
-                onAdminClearRsvp={onAdminClearRsvp}
-              />
-            )}
-            {maybe.length > 0 && (
-              <RiderList
-                label="Rider Maybe"
-                items={maybe}
-                color="text-amber-600 dark:text-amber-400"
-                currentStatus="maybe"
-                onAdminRsvp={onAdminRsvp}
-                onAdminClearRsvp={onAdminClearRsvp}
-              />
-            )}
-            {no.length > 0 && (
-              <RiderList
-                label="Rider No"
-                items={no}
-                color="text-red-600 dark:text-red-400"
-                currentStatus="no"
-                onAdminRsvp={onAdminRsvp}
-                onAdminClearRsvp={onAdminClearRsvp}
-              />
-            )}
-            {notResponded.length > 0 && (
-              <RiderList
-                label="Rider No Response"
-                items={notResponded}
-                color="text-muted-foreground"
-                onAdminRsvp={onAdminRsvp}
-                onAdminClearRsvp={onAdminClearRsvp}
-              />
-            )}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {confirmed.length > 0 && (
+                <RiderList
+                  label="Rider Confirmed"
+                  items={confirmed}
+                  color="text-green-600 dark:text-green-400"
+                  currentStatus="yes"
+                  onAdminRsvp={onAdminRsvp}
+                  onAdminClearRsvp={onAdminClearRsvp}
+                />
+              )}
+              {maybe.length > 0 && (
+                <RiderList
+                  label="Rider Maybe"
+                  items={maybe}
+                  color="text-amber-600 dark:text-amber-400"
+                  currentStatus="maybe"
+                  onAdminRsvp={onAdminRsvp}
+                  onAdminClearRsvp={onAdminClearRsvp}
+                />
+              )}
+              {no.length > 0 && (
+                <RiderList
+                  label="Rider No"
+                  items={no}
+                  color="text-red-600 dark:text-red-400"
+                  currentStatus="no"
+                  onAdminRsvp={onAdminRsvp}
+                  onAdminClearRsvp={onAdminClearRsvp}
+                />
+              )}
+              {notResponded.length > 0 && (
+                <RiderList
+                  label="Rider No Response"
+                  items={notResponded}
+                  color="text-muted-foreground"
+                  onAdminRsvp={onAdminRsvp}
+                  onAdminClearRsvp={onAdminClearRsvp}
+                />
+              )}
+            </div>
             {total === 0 && (
               <p className="text-sm text-muted-foreground">No riders in this group</p>
             )}
@@ -175,8 +177,13 @@ function CoachListSection({
   maybe: DashboardRollModel[];
   no: DashboardRollModel[];
 }) {
+  const hasAnyRows = confirmed.length > 0 || maybe.length > 0 || no.length > 0;
+  if (!hasAnyRows) {
+    return null;
+  }
+
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {confirmed.length > 0 && (
         <CoachRow
           label="Roll Model Confirmed"
@@ -212,7 +219,7 @@ function CoachRow({
   coaches: DashboardRollModel[];
 }) {
   return (
-    <div>
+    <div className="rounded-md bg-background/70 p-2 ring-1 ring-border/70">
       <p className={`text-xs font-medium ${className}`}>
         {label} ({coaches.length})
       </p>
@@ -246,7 +253,7 @@ function RiderList({
   onAdminClearRsvp?: (riderId: string, isMinor: boolean) => void;
 }) {
   return (
-    <div>
+    <div className="rounded-md bg-muted/40 p-2">
       <p className={`text-xs font-medium ${color}`}>
         {label} ({items.length})
       </p>
