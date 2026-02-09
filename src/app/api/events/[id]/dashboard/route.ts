@@ -142,6 +142,14 @@ export async function GET(
     })
     .filter((rm): rm is ReturnType<typeof buildRollModelWithAssignment> => rm !== null);
 
+  const rmNo = allRollModels
+    .map((rm) => {
+      const rsvp = selfRsvpMap.get(rm.id);
+      if (rsvp?.status !== "no") return null;
+      return buildRollModelWithAssignment(rm, rsvp.assigned_group_id);
+    })
+    .filter((rm): rm is ReturnType<typeof buildRollModelWithAssignment> => rm !== null);
+
   const rmNotResponded = allRollModels
     .filter((rm) => !selfRsvpMap.has(rm.id))
     .map((rm) => buildRollModelWithAssignment(rm, null));
@@ -240,6 +248,7 @@ export async function GET(
     roll_models: {
       confirmed: rmConfirmed,
       maybe: rmMaybe,
+      no: rmNo,
       not_responded: rmNotResponded,
       confirmed_unassigned: rmConfirmedUnassigned,
     },

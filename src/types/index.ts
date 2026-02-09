@@ -94,6 +94,7 @@ export interface EventDashboardData {
   roll_models: {
     confirmed: DashboardRollModel[];
     maybe: DashboardRollModel[];
+    no: DashboardRollModel[];
     not_responded: DashboardRollModel[];
     confirmed_unassigned: DashboardRollModel[];
   };

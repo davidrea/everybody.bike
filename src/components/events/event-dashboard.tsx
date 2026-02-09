@@ -229,6 +229,24 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                     </Badge>
                   ),
                 )}
+                {dashboard.roll_models.no.map((rm) =>
+                  adminMode ? (
+                    <RollModelRsvpBadge
+                      key={rm.id}
+                      rollModel={rm}
+                      eventGroups={eventGroups}
+                      currentStatus="no"
+                      variant="no"
+                      onSelect={(status, assignedGroupId) =>
+                        handleAdminRollModelRsvp(rm.id, status, assignedGroupId)}
+                      onClear={() => handleAdminClearRollModelRsvp(rm.id)}
+                    />
+                  ) : (
+                    <Badge key={rm.id} className="bg-red-600 text-white">
+                      {formatRollModelLabel(rm)} (no)
+                    </Badge>
+                  ),
+                )}
               </div>
               {dashboard.roll_models.confirmed_unassigned.length > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -308,6 +326,16 @@ export function EventDashboard({ eventId }: { eventId: string }) {
               onAdminClear={handleAdminClearRollModelRsvp}
             />
             <StatusSection
+              label="No"
+              items={dashboard.roll_models.no}
+              color="text-red-600 dark:text-red-400"
+              currentStatus="no"
+              adminMode={adminMode}
+              eventGroups={eventGroups}
+              onAdminRsvp={handleAdminRollModelRsvp}
+              onAdminClear={handleAdminClearRollModelRsvp}
+            />
+            <StatusSection
               label="No Response"
               items={dashboard.roll_models.not_responded}
               color="text-muted-foreground"
@@ -361,7 +389,7 @@ function RollModelRsvpBadge({
   rollModel: DashboardRollModel;
   eventGroups: Group[];
   currentStatus?: RsvpStatus;
-  variant: "confirmed" | "maybe" | "not_responded";
+  variant: "confirmed" | "maybe" | "no" | "not_responded";
   onSelect: (status: RsvpStatus, assignedGroupId: string | null) => void;
   onClear?: () => void;
 }) {
@@ -376,7 +404,9 @@ function RollModelRsvpBadge({
       ? "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
       : variant === "maybe"
         ? "border-amber-500 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 cursor-pointer"
-        : "cursor-pointer hover:bg-muted";
+        : variant === "no"
+          ? "bg-red-600 text-white hover:bg-red-700 cursor-pointer"
+          : "cursor-pointer hover:bg-muted";
 
   return (
     <Popover
@@ -504,7 +534,9 @@ function StatusSection({
                   ? "confirmed"
                   : currentStatus === "maybe"
                     ? "maybe"
-                    : "not_responded"
+                    : currentStatus === "no"
+                      ? "no"
+                      : "not_responded"
               }
               onSelect={(status, assignedGroupId) =>
                 onAdminRsvp(rm.id, status, assignedGroupId)}
