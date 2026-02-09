@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MapPin, Clock, Repeat } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { EventTypeBadge } from "./event-type-badge";
+import { cn } from "@/lib/utils";
 import type { EventWithGroups } from "@/types";
 
 function formatDate(dateStr: string) {
@@ -19,15 +20,32 @@ function formatDate(dateStr: string) {
   };
 }
 
-export function EventCard({ event }: { event: EventWithGroups }) {
+export function EventCard({
+  event,
+  variant = "default",
+}: {
+  event: EventWithGroups;
+  variant?: "default" | "past";
+}) {
   const date = formatDate(event.starts_at);
   const groups = event.event_groups?.map((eg) => eg.groups) ?? [];
+  const isPast = variant === "past";
 
   return (
     <Link href={`/events/${event.id}`}>
-      <Card className="transition-colors hover:bg-muted/50">
+      <Card
+        className={cn(
+          "transition-colors hover:bg-muted/50",
+          isPast && "opacity-70",
+        )}
+      >
         <CardContent className="flex gap-4 p-4">
-          <div className="flex min-w-[60px] flex-col items-center rounded-lg bg-primary/10 px-3 py-2 text-primary">
+          <div
+            className={cn(
+              "flex min-w-[60px] flex-col items-center rounded-lg bg-primary/10 px-3 py-2 text-primary",
+              isPast && "bg-muted/60 text-muted-foreground",
+            )}
+          >
             <span className="text-xs font-medium uppercase">{date.month}</span>
             <span className="text-2xl font-bold leading-none">{date.day}</span>
             <span className="text-xs">{date.weekday}</span>

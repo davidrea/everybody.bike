@@ -39,6 +39,11 @@ export function EventList() {
   const { data: events, isLoading } = useEvents(
     Object.keys(filters).length > 0 ? filters : undefined,
   );
+  const now = new Date();
+  const upcomingEvents =
+    events?.filter((event) => new Date(event.starts_at) >= now) ?? [];
+  const pastEvents =
+    events?.filter((event) => new Date(event.starts_at) < now) ?? [];
 
   return (
     <>
@@ -94,10 +99,48 @@ export function EventList() {
           No events found. {isAdmin() && "Create your first event."}
         </div>
       ) : (
-        <div className="space-y-3">
-          {events?.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-heading text-xl font-semibold">
+                Upcoming Events
+              </h2>
+              <span className="text-sm text-muted-foreground">
+                {upcomingEvents.length}
+                {upcomingEvents.length === 1 ? " event" : " events"}
+              </span>
+            </div>
+            {upcomingEvents.length === 0 ? (
+              <div className="flex items-center justify-center rounded-lg border border-dashed p-8 text-muted-foreground">
+                No upcoming events.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {upcomingEvents.map((event) => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {pastEvents.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-heading text-xl font-semibold">
+                  Past Events
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {pastEvents.length}
+                  {pastEvents.length === 1 ? " event" : " events"}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {pastEvents.map((event) => (
+                  <EventCard key={event.id} event={event} variant="past" />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

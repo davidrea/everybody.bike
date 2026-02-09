@@ -126,6 +126,16 @@ export async function POST(request: Request) {
     }
   }
 
+  if (on_behalf_of) {
+    const eventStart = new Date(event.starts_at);
+    if (new Date() > eventStart) {
+      return NextResponse.json(
+        { error: "Admin RSVP changes are disabled for past events" },
+        { status: 400 },
+      );
+    }
+  }
+
   // Admin override: on_behalf_of
   if (on_behalf_of) {
     if (!callerIsAdmin) {
@@ -271,6 +281,25 @@ export async function DELETE(request: Request) {
       { error: "Only admins can clear RSVPs on behalf of others" },
       { status: 403 },
     );
+  }
+
+  if (on_behalf_of) {
+    const { data: event } = await supabase
+      .from("events")
+      .select("starts_at")
+      .eq("id", event_id)
+      .single();
+
+    if (!event) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
+
+    if (new Date() > new Date(event.starts_at)) {
+      return NextResponse.json(
+        { error: "Admin RSVP changes are disabled for past events" },
+        { status: 400 },
+      );
+    }
   }
 
   if (rider_id) {

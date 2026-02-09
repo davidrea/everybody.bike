@@ -39,7 +39,10 @@ export function EventDashboard({ eventId }: { eventId: string }) {
     !hasRole("rider") &&
     !isAdmin();
 
-  const adminMode = isAdmin();
+  const isEventPast = dashboard?.event?.starts_at
+    ? new Date(dashboard.event.starts_at) < new Date()
+    : false;
+  const adminMode = isAdmin() && !isEventPast;
   const eventGroups = dashboard?.event?.event_groups
     ?.map((entry) => entry.groups)
     .filter((group): group is Group => Boolean(group)) ?? [];
@@ -142,6 +145,11 @@ export function EventDashboard({ eventId }: { eventId: string }) {
     <Card>
       <CardHeader className="space-y-3">
         <CardTitle className="text-lg">Event Dashboard</CardTitle>
+        {isEventPast && isAdmin() && (
+          <p className="text-xs text-muted-foreground">
+            Admin RSVP overrides are disabled for past events.
+          </p>
+        )}
         <div className="flex flex-wrap gap-4">
           <div className="text-sm">
             <span className="text-muted-foreground">Roll Models: </span>
