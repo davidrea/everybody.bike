@@ -556,33 +556,41 @@ npm run format
 ## Implementation Phases
 
 ### Phase 1 — Foundation
-- Project scaffolding (Next.js, Tailwind, shadcn/ui, TypeScript).
-- Docker Compose with Supabase containers.
-- Database schema and migrations.
-- Auth flow (magic link + passkey).
-- Long-lived session configuration.
-- Basic layout and navigation with rugged theme.
+- [x] Project scaffolding (Next.js, Tailwind, shadcn/ui, TypeScript).
+- [ ] Docker Compose with Supabase containers.
+- [x] Database schema and migrations.
+- [x] Auth flow (magic link + passkey).
+- [x] Invite onboarding flow (confirm name, optional passkey, add minor riders).
+- [ ] Long-lived session configuration (90+ day refresh token).
+- [x] Basic layout and navigation with rugged theme.
 
 ### Phase 2 — Core Features
-- Event CRUD (with recurring event support).
-- RSVP system (self-RSVP for Roll Models and Adult Riders; parent-RSVP for minors).
-- Event dashboard.
-- Group management and assignment.
-- CSV import with deduplication (riders, parents, roll models).
-- User invite flow and management.
+- [x] Event CRUD (with recurring event support, series edit/delete).
+- [x] RSVP system (self-RSVP for Roll Models and Adult Riders; parent-RSVP for minors).
+- [x] Admin RSVP override + clear.
+- [x] Roll Model per-event group assignment.
+- [x] Event dashboard (role-aware views + ratio indicator).
+- [x] Event report (printable roster + safety flags).
+- [x] Group management and assignment (minor + adult riders, roll models).
+- [x] CSV import with deduplication + preview + auto-invites.
+- [x] User invite flow and management (roles, resend, status).
+- [x] Profile management (name/email, linked riders, medical alerts, media opt-out).
+- [x] Safety indicators (medical alerts + media opt-out badges).
 
 ### Phase 3 — Notifications & PWA
-- PWA manifest, service worker, installability.
-- Web Push subscription management.
-- Notification scheduling and targeting.
-- Notification preferences UI.
+- [x] PWA manifest + icons + theme metadata.
+- [ ] Service worker + offline cache.
+- [ ] Web Push subscription management.
+- [ ] Notification scheduling + targeting.
+- [ ] Notification preferences UI.
+- [ ] Admin notifications UI (schedule/send).
 
 ### Phase 4 — Polish & Testing
-- Comprehensive test suite (unit, integration, e2e).
-- Offline support and sync.
-- Dark mode.
-- Performance optimization.
-- Security hardening and audit.
+- [ ] Comprehensive test suite (unit, integration, e2e).
+- [ ] Offline support and sync.
+- [x] Dark mode.
+- [ ] Performance optimization.
+- [ ] Security hardening and audit.
 
 ---
 

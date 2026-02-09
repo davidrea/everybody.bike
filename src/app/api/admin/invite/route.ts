@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inviteSchema } from "@/lib/validators";
+import { getBaseUrl } from "@/lib/url";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -54,11 +55,12 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const callbackUrl = new URL("/auth/callback", request.url).toString();
+  const callbackUrl = new URL("/auth/callback", getBaseUrl(request)).toString();
+  const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
     email,
     {
-      data: { full_name },
+      data: { full_name, auth_email_expires_at: expiresAt },
       redirectTo: callbackUrl,
     },
   );

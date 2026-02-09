@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>You're invited to everybody.bike</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:28px 28px 8px 28px;">
+                <h1 style="margin:0;font-size:22px;color:#0f172a;">You're invited to everybody.bike</h1>
+                <p style="margin:12px 0 0 0;font-size:14px;color:#475569;line-height:1.5;">
+                  You have been invited to join the club. Click the button below to accept your invite and sign in.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 28px 8px 28px;">
+                <a
+                  href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite"
+                  style="display:inline-block;background:#ea580c;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600;font-size:14px;"
+                >
+                  Accept invite
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 28px 20px 28px;">
+                <p style="margin:0 0 8px 0;font-size:12px;color:#64748b;line-height:1.5;">
+                  This link expires in 12 hours.
+                  {{ if .Data.auth_email_expires_at }}Expires at {{ .Data.auth_email_expires_at }} UTC.{{ end }}
+                </p>
+                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
+                  If the button doesn’t work, copy and paste this link into your browser:
+                  <br />
+                  {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 28px 28px 28px;">
+                <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">
+                  This link is unique to you and expires after a short time.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

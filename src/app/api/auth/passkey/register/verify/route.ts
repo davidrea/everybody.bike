@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { rpID, origin } from "@/lib/passkey";
+import { getOriginFromHeaders, getRpIDFromHeaders } from "@/lib/passkey";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -14,6 +15,12 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+  const incomingCredential = body?.credential ?? body;
+  const passkeyName =
+    typeof body?.passkeyName === "string" && body.passkeyName.trim().length > 0
+      ? body.passkeyName.trim()
+      : null;
+  const allowOverwrite = body?.allowOverwrite === true;
   const expectedChallenge = user.user_metadata?.webauthn_challenge;
 
   if (!expectedChallenge) {
@@ -21,8 +28,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const headerList = headers();
+    const rpID = getRpIDFromHeaders(headerList);
+    const origin = getOriginFromHeaders(headerList);
+
     const verification = await verifyRegistrationResponse({
-      response: body,
+      response: incomingCredential,
       expectedChallenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
@@ -32,19 +43,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Verification failed" }, { status: 400 });
     }
 
-    const { credential, credentialDeviceType, credentialBackedUp } =
+    const { credential: verifiedCredential, credentialDeviceType, credentialBackedUp } =
       verification.registrationInfo;
 
     // Store the credential in the database
-    const { error } = await supabase.from("passkey_credentials").insert({
-      id: credential.id,
+    const publicKeyHex = Buffer.from(verifiedCredential.publicKey).toString("hex");
+    const insertPayload = {
+      id: verifiedCredential.id,
       user_id: user.id,
-      public_key: Buffer.from(credential.publicKey).toString("base64"),
-      counter: Number(credential.counter),
+      // Store as bytea-hex format for Postgres (\\x...)
+      public_key: `\\x${publicKeyHex}`,
+      counter: Number(verifiedCredential.counter),
       device_type: credentialDeviceType,
       backed_up: credentialBackedUp,
-      transports: body.response?.transports || [],
-    });
+      transports: incomingCredential?.response?.transports || [],
+      name: passkeyName,
+    };
+
+    const { error } = allowOverwrite
+      ? await supabase.from("passkey_credentials").upsert(insertPayload, {
+          onConflict: "id",
+        })
+      : await supabase.from("passkey_credentials").insert(insertPayload);
 
     if (error) {
       return NextResponse.json({ error: "Failed to store credential" }, { status: 500 });

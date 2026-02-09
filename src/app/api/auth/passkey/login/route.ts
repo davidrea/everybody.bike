@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
-import { rpID } from "@/lib/passkey";
+import { headers } from "next/headers";
+import { getRpIDFromHeaders } from "@/lib/passkey";
 import { cookies } from "next/headers";
 
 export async function GET() {
   try {
+    const headerList = headers();
+    const rpID = getRpIDFromHeaders(headerList);
+
     const options = await generateAuthenticationOptions({
       rpID,
       userVerification: "preferred",

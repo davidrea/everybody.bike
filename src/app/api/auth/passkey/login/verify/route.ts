@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { rpID, origin } from "@/lib/passkey";
-import { cookies } from "next/headers";
+import { getOriginFromHeaders, getRpIDFromHeaders } from "@/lib/passkey";
+import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
 export async function POST(request: Request) {
@@ -33,8 +33,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Decode the stored public key from base64
-    const publicKeyBytes = Uint8Array.from(Buffer.from(credential.public_key, "base64"));
+    // Decode the stored public key from bytea (\\x...) or base64 (legacy)
+    const publicKeyRaw = String(credential.public_key);
+    const publicKeyBytes = publicKeyRaw.startsWith("\\x")
+      ? Uint8Array.from(Buffer.from(publicKeyRaw.slice(2), "hex"))
+      : Uint8Array.from(Buffer.from(publicKeyRaw, "base64"));
+
+    const headerList = headers();
+    const rpID = getRpIDFromHeaders(headerList);
+    const origin = getOriginFromHeaders(headerList);
 
     const verification = await verifyAuthenticationResponse({
       response: body,
@@ -56,7 +63,10 @@ export async function POST(request: Request) {
     // Update the credential counter
     await adminClient
       .from("passkey_credentials")
-      .update({ counter: Number(verification.authenticationInfo.newCounter) })
+      .update({
+        counter: Number(verification.authenticationInfo.newCounter),
+        last_used_at: new Date().toISOString(),
+      })
       .eq("id", credentialId);
 
     // Clear the challenge cookie

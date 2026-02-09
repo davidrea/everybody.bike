@@ -104,3 +104,68 @@ export const roleUpdateSchema = z.object({
 });
 
 export type RoleUpdateValues = z.infer<typeof roleUpdateSchema>;
+
+// ─── Notifications ────────────────────────────────────────────
+
+export const notificationPreferencesSchema = z.object({
+  new_event: z.boolean().optional(),
+  rsvp_reminder: z.boolean().optional(),
+  event_update: z.boolean().optional(),
+  custom_message: z.boolean().optional(),
+});
+
+export const pushSubscriptionSchema = z.object({
+  subscription: z.object({
+    endpoint: z.string().url(),
+    keys: z.object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1),
+    }),
+  }),
+  user_agent: z.string().optional(),
+});
+
+export const pushUnsubscribeSchema = z.object({
+  endpoint: z.string().url(),
+});
+
+export const scheduledNotificationSchema = z
+  .object({
+    title: z.string().min(1, "Title is required").max(120),
+    body: z.string().min(1, "Body is required").max(500),
+    url: z.string().optional().or(z.literal("")),
+    scheduled_for: z.string().min(1, "Scheduled time is required"),
+    target_type: z.enum(["all", "group", "event_rsvpd", "event_not_rsvpd"]),
+    target_id: z.string().uuid().nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.url && data.url.length > 0) {
+      const isAbsolute = /^https?:\/\//i.test(data.url);
+      const isRelative = data.url.startsWith("/");
+      if (!isAbsolute && !isRelative) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "URL must be absolute or start with /",
+          path: ["url"],
+        });
+      }
+    }
+    const needsTarget =
+      data.target_type === "group" ||
+      data.target_type === "event_rsvpd" ||
+      data.target_type === "event_not_rsvpd";
+    if (needsTarget && !data.target_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Target is required for this notification type",
+        path: ["target_id"],
+      });
+    }
+    if (!needsTarget && data.target_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Target is not allowed for this notification type",
+        path: ["target_id"],
+      });
+    }
+  });
