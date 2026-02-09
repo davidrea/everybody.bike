@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { rpID, origin } from "@/lib/passkey";
+import { getOriginFromHeaders, getRpIDFromHeaders } from "@/lib/passkey";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const headerList = headers();
+    const rpID = getRpIDFromHeaders(headerList);
+    const origin = getOriginFromHeaders(headerList);
+
     const verification = await verifyRegistrationResponse({
       response: body,
       expectedChallenge,

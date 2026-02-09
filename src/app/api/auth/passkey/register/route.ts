@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateRegistrationOptions } from "@simplewebauthn/server";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { rpID, rpName } from "@/lib/passkey";
+import { getRpIDFromHeaders, rpName } from "@/lib/passkey";
 
 export async function GET() {
   const supabase = await createClient();
@@ -18,6 +19,9 @@ export async function GET() {
     .from("passkey_credentials")
     .select("id")
     .eq("user_id", user.id);
+
+  const headerList = headers();
+  const rpID = getRpIDFromHeaders(headerList);
 
   const options = await generateRegistrationOptions({
     rpName,
