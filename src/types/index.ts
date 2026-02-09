@@ -11,6 +11,29 @@ export type Event = Database["public"]["Tables"]["events"]["Row"];
 export type EventInsert = Database["public"]["Tables"]["events"]["Insert"];
 export type Rsvp = Database["public"]["Tables"]["rsvps"]["Row"];
 export type RsvpInsert = Database["public"]["Tables"]["rsvps"]["Insert"];
+export type NotificationPreferences = {
+  new_event: boolean;
+  rsvp_reminder: boolean;
+  event_update: boolean;
+  custom_message: boolean;
+};
+export type NotificationTargetType =
+  | "all"
+  | "group"
+  | "event_rsvpd"
+  | "event_not_rsvpd";
+export type ScheduledNotification = {
+  id: string;
+  title: string;
+  body: string;
+  url: string | null;
+  scheduled_for: string;
+  target_type: NotificationTargetType;
+  target_id: string | null;
+  sent: boolean;
+  created_by: string | null;
+  created_at: string;
+};
 
 // ─── Enums ─────────────────────────────────────────────────────
 export const EVENT_TYPES = ["ride", "clinic", "social", "meeting", "other"] as const;

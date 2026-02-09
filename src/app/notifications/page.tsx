@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { NotificationPreferences } from "@/components/notifications/notification-preferences";
 
 export default function NotificationsPage() {
   return (
@@ -6,11 +7,9 @@ export default function NotificationsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="font-heading text-3xl font-bold tracking-tight">Notifications</h1>
-          <p className="text-muted-foreground">Push notification preferences and history</p>
+          <p className="text-muted-foreground">Manage your push notifications</p>
         </div>
-        <div className="flex items-center justify-center rounded-lg border border-dashed p-12 text-muted-foreground">
-          Notification management will be here — coming in Phase 3.
-        </div>
+        <NotificationPreferences />
       </div>
     </AppShell>
   );
