@@ -15,10 +15,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DashboardRatioIndicator } from "./dashboard-ratio-indicator";
 import { DashboardGroupSection } from "./dashboard-group-section";
 import { ParentDashboard } from "./parent-dashboard";
-import type { RsvpStatus, DashboardRollModel } from "@/types";
+import type { Group, RsvpStatus, DashboardRollModel } from "@/types";
 
 export function EventDashboard({ eventId }: { eventId: string }) {
   const { hasRole, isAdmin } = useAuth();
@@ -33,6 +40,9 @@ export function EventDashboard({ eventId }: { eventId: string }) {
     !isAdmin();
 
   const adminMode = isAdmin();
+  const eventGroups = dashboard?.event?.event_groups
+    ?.map((entry) => entry.groups)
+    .filter((group): group is Group => Boolean(group)) ?? [];
 
   function handleAdminRiderRsvp(
     riderId: string,
@@ -63,9 +73,15 @@ export function EventDashboard({ eventId }: { eventId: string }) {
   function handleAdminRollModelRsvp(
     rollModelId: string,
     status: RsvpStatus,
+    assignedGroupId: string | null,
   ) {
     submitRsvp.mutate(
-      { event_id: eventId, status, on_behalf_of: rollModelId },
+      {
+        event_id: eventId,
+        status,
+        on_behalf_of: rollModelId,
+        assigned_group_id: assignedGroupId,
+      },
       {
         onSuccess: () => toast.success("RSVP updated"),
         onError: (err) =>
@@ -176,9 +192,11 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                     <RollModelRsvpBadge
                       key={rm.id}
                       rollModel={rm}
+                      eventGroups={eventGroups}
                       currentStatus="yes"
                       variant="confirmed"
-                      onSelect={(status) => handleAdminRollModelRsvp(rm.id, status)}
+                      onSelect={(status, assignedGroupId) =>
+                        handleAdminRollModelRsvp(rm.id, status, assignedGroupId)}
                       onClear={() => handleAdminClearRollModelRsvp(rm.id)}
                     />
                   ) : (
@@ -192,9 +210,11 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                     <RollModelRsvpBadge
                       key={rm.id}
                       rollModel={rm}
+                      eventGroups={eventGroups}
                       currentStatus="maybe"
                       variant="maybe"
-                      onSelect={(status) => handleAdminRollModelRsvp(rm.id, status)}
+                      onSelect={(status, assignedGroupId) =>
+                        handleAdminRollModelRsvp(rm.id, status, assignedGroupId)}
                       onClear={() => handleAdminClearRollModelRsvp(rm.id)}
                     />
                   ) : (
@@ -225,8 +245,10 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                         <RollModelRsvpBadge
                           key={rm.id}
                           rollModel={rm}
+                          eventGroups={eventGroups}
                           variant="not_responded"
-                          onSelect={(status) => handleAdminRollModelRsvp(rm.id, status)}
+                          onSelect={(status, assignedGroupId) =>
+                            handleAdminRollModelRsvp(rm.id, status, assignedGroupId)}
                           onClear={() => handleAdminClearRollModelRsvp(rm.id)}
                         />
                       ))}
@@ -253,6 +275,9 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                 confirmedCoachCount={g.coach_counts.confirmed}
                 maybeCoachCount={g.coach_counts.maybe}
                 coachRiderRatio={g.coach_rider_ratio}
+                assignedConfirmedCoaches={g.coaches.confirmed}
+                assignedMaybeCoaches={g.coaches.maybe}
+                assignedNoCoaches={g.coaches.no}
                 onAdminRsvp={adminMode ? handleAdminRiderRsvp : undefined}
                 onAdminClearRsvp={adminMode ? handleAdminClearRiderRsvp : undefined}
               />
@@ -266,6 +291,7 @@ export function EventDashboard({ eventId }: { eventId: string }) {
               color="text-green-600 dark:text-green-400"
               currentStatus="yes"
               adminMode={adminMode}
+              eventGroups={eventGroups}
               onAdminRsvp={handleAdminRollModelRsvp}
               onAdminClear={handleAdminClearRollModelRsvp}
             />
@@ -275,6 +301,7 @@ export function EventDashboard({ eventId }: { eventId: string }) {
               color="text-amber-600 dark:text-amber-400"
               currentStatus="maybe"
               adminMode={adminMode}
+              eventGroups={eventGroups}
               onAdminRsvp={handleAdminRollModelRsvp}
               onAdminClear={handleAdminClearRollModelRsvp}
             />
@@ -283,6 +310,7 @@ export function EventDashboard({ eventId }: { eventId: string }) {
               items={dashboard.roll_models.not_responded}
               color="text-muted-foreground"
               adminMode={adminMode}
+              eventGroups={eventGroups}
               onAdminRsvp={handleAdminRollModelRsvp}
               onAdminClear={handleAdminClearRollModelRsvp}
             />
@@ -301,6 +329,9 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                 confirmedCoachCount={g.coach_counts.confirmed}
                 maybeCoachCount={g.coach_counts.maybe}
                 coachRiderRatio={g.coach_rider_ratio}
+                assignedConfirmedCoaches={g.coaches.confirmed}
+                assignedMaybeCoaches={g.coaches.maybe}
+                assignedNoCoaches={g.coaches.no}
                 onAdminRsvp={adminMode ? handleAdminRiderRsvp : undefined}
               />
             ))}
@@ -319,18 +350,24 @@ const rsvpStatusConfig: { value: RsvpStatus; label: string; className: string }[
 
 function RollModelRsvpBadge({
   rollModel,
+  eventGroups,
   currentStatus,
   variant,
   onSelect,
   onClear,
 }: {
   rollModel: DashboardRollModel;
+  eventGroups: Group[];
   currentStatus?: RsvpStatus;
   variant: "confirmed" | "maybe" | "not_responded";
-  onSelect: (status: RsvpStatus) => void;
+  onSelect: (status: RsvpStatus, assignedGroupId: string | null) => void;
   onClear?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const unassignedOption = "__unassigned__";
+  const [selectedGroupId, setSelectedGroupId] = useState(
+    rollModel.assigned_group_id ?? unassignedOption,
+  );
 
   const badgeClass =
     variant === "confirmed"
@@ -340,7 +377,15 @@ function RollModelRsvpBadge({
         : "cursor-pointer hover:bg-muted";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setSelectedGroupId(rollModel.assigned_group_id ?? unassignedOption);
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <button type="button">
           <Badge
@@ -359,6 +404,24 @@ function RollModelRsvpBadge({
             Assigned: {rollModel.assigned_group_name}
           </p>
         )}
+        <div className="mb-2 space-y-1">
+          <p className="text-xs text-muted-foreground">Assigned Group</p>
+          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <SelectTrigger className="h-8 w-[220px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={unassignedOption}>
+                Unassigned (Trailhead / Support)
+              </SelectItem>
+              {eventGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex gap-1">
           {rsvpStatusConfig.map((s) => (
             <Button
@@ -367,7 +430,10 @@ function RollModelRsvpBadge({
               variant={currentStatus === s.value ? "default" : "outline"}
               className={currentStatus === s.value ? s.className : "text-xs"}
               onClick={() => {
-                onSelect(s.value);
+                onSelect(
+                  s.value,
+                  selectedGroupId === unassignedOption ? null : selectedGroupId,
+                );
                 setOpen(false);
               }}
             >
@@ -399,6 +465,7 @@ function StatusSection({
   color,
   currentStatus,
   adminMode,
+  eventGroups,
   onAdminRsvp,
   onAdminClear,
 }: {
@@ -407,7 +474,12 @@ function StatusSection({
   color: string;
   currentStatus?: RsvpStatus;
   adminMode: boolean;
-  onAdminRsvp: (rollModelId: string, status: RsvpStatus) => void;
+  eventGroups: Group[];
+  onAdminRsvp: (
+    rollModelId: string,
+    status: RsvpStatus,
+    assignedGroupId: string | null,
+  ) => void;
   onAdminClear: (rollModelId: string) => void;
 }) {
   if (items.length === 0) return null;
@@ -423,6 +495,7 @@ function StatusSection({
             <RollModelRsvpBadge
               key={rm.id}
               rollModel={rm}
+              eventGroups={eventGroups}
               currentStatus={currentStatus}
               variant={
                 currentStatus === "yes"
@@ -431,7 +504,8 @@ function StatusSection({
                     ? "maybe"
                     : "not_responded"
               }
-              onSelect={(status) => onAdminRsvp(rm.id, status)}
+              onSelect={(status, assignedGroupId) =>
+                onAdminRsvp(rm.id, status, assignedGroupId)}
               onClear={() => onAdminClear(rm.id)}
             />
           ) : (

@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { RsvpStatus } from "@/types";
+import type { DashboardRollModel, RsvpStatus } from "@/types";
 
 interface RiderEntry {
   id: string;
@@ -27,6 +27,9 @@ interface DashboardGroupSectionProps {
   confirmedCoachCount: number;
   maybeCoachCount: number;
   coachRiderRatio: number | null;
+  assignedConfirmedCoaches: DashboardRollModel[];
+  assignedMaybeCoaches: DashboardRollModel[];
+  assignedNoCoaches: DashboardRollModel[];
   onAdminRsvp?: (riderId: string, isMinor: boolean, status: RsvpStatus) => void;
   onAdminClearRsvp?: (riderId: string, isMinor: boolean) => void;
 }
@@ -41,6 +44,9 @@ export function DashboardGroupSection({
   confirmedCoachCount,
   maybeCoachCount,
   coachRiderRatio,
+  assignedConfirmedCoaches,
+  assignedMaybeCoaches,
+  assignedNoCoaches,
   onAdminRsvp,
   onAdminClearRsvp,
 }: DashboardGroupSectionProps) {
@@ -83,53 +89,143 @@ export function DashboardGroupSection({
 
       {expanded && (
         <div className="space-y-3 px-4 pb-4">
-          <p className="text-xs text-muted-foreground">
-            Coaches assigned: {confirmedCoachCount} confirmed, {maybeCoachCount} maybe
-          </p>
-          {confirmed.length > 0 && (
-            <RiderList
-              label="Confirmed"
-              items={confirmed}
-              color="text-green-600 dark:text-green-400"
-              currentStatus="yes"
-              onAdminRsvp={onAdminRsvp}
-              onAdminClearRsvp={onAdminClearRsvp}
-            />
-          )}
-          {maybe.length > 0 && (
-            <RiderList
-              label="Maybe"
-              items={maybe}
-              color="text-amber-600 dark:text-amber-400"
-              currentStatus="maybe"
-              onAdminRsvp={onAdminRsvp}
-              onAdminClearRsvp={onAdminClearRsvp}
-            />
-          )}
-          {no.length > 0 && (
-            <RiderList
-              label="No"
-              items={no}
-              color="text-red-600 dark:text-red-400"
-              currentStatus="no"
-              onAdminRsvp={onAdminRsvp}
-              onAdminClearRsvp={onAdminClearRsvp}
-            />
-          )}
-          {notResponded.length > 0 && (
-            <RiderList
-              label="No Response"
-              items={notResponded}
-              color="text-muted-foreground"
-              onAdminRsvp={onAdminRsvp}
-              onAdminClearRsvp={onAdminClearRsvp}
-            />
-          )}
-          {total === 0 && (
-            <p className="text-sm text-muted-foreground">No riders in this group</p>
-          )}
+          <section className="rounded-md border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Roll Models
+              </p>
+              <Badge variant="outline" className="text-xs">
+                {confirmedCoachCount} confirmed, {maybeCoachCount} maybe
+              </Badge>
+            </div>
+            {(assignedConfirmedCoaches.length > 0 ||
+              assignedMaybeCoaches.length > 0 ||
+              assignedNoCoaches.length > 0) ? (
+              <CoachListSection
+                confirmed={assignedConfirmedCoaches}
+                maybe={assignedMaybeCoaches}
+                no={assignedNoCoaches}
+              />
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No roll models assigned to this group yet.
+              </p>
+            )}
+          </section>
+
+          <section className="space-y-3 rounded-md border p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Riders
+            </p>
+            {confirmed.length > 0 && (
+              <RiderList
+                label="Rider Confirmed"
+                items={confirmed}
+                color="text-green-600 dark:text-green-400"
+                currentStatus="yes"
+                onAdminRsvp={onAdminRsvp}
+                onAdminClearRsvp={onAdminClearRsvp}
+              />
+            )}
+            {maybe.length > 0 && (
+              <RiderList
+                label="Rider Maybe"
+                items={maybe}
+                color="text-amber-600 dark:text-amber-400"
+                currentStatus="maybe"
+                onAdminRsvp={onAdminRsvp}
+                onAdminClearRsvp={onAdminClearRsvp}
+              />
+            )}
+            {no.length > 0 && (
+              <RiderList
+                label="Rider No"
+                items={no}
+                color="text-red-600 dark:text-red-400"
+                currentStatus="no"
+                onAdminRsvp={onAdminRsvp}
+                onAdminClearRsvp={onAdminClearRsvp}
+              />
+            )}
+            {notResponded.length > 0 && (
+              <RiderList
+                label="Rider No Response"
+                items={notResponded}
+                color="text-muted-foreground"
+                onAdminRsvp={onAdminRsvp}
+                onAdminClearRsvp={onAdminClearRsvp}
+              />
+            )}
+            {total === 0 && (
+              <p className="text-sm text-muted-foreground">No riders in this group</p>
+            )}
+          </section>
         </div>
       )}
+    </div>
+  );
+}
+
+function CoachListSection({
+  confirmed,
+  maybe,
+  no,
+}: {
+  confirmed: DashboardRollModel[];
+  maybe: DashboardRollModel[];
+  no: DashboardRollModel[];
+}) {
+  return (
+    <div className="mt-2 space-y-2">
+      {confirmed.length > 0 && (
+        <CoachRow
+          label="Roll Model Confirmed"
+          className="text-green-600 dark:text-green-400"
+          coaches={confirmed}
+        />
+      )}
+      {maybe.length > 0 && (
+        <CoachRow
+          label="Roll Model Maybe"
+          className="text-amber-600 dark:text-amber-400"
+          coaches={maybe}
+        />
+      )}
+      {no.length > 0 && (
+        <CoachRow
+          label="Roll Model No"
+          className="text-red-600 dark:text-red-400"
+          coaches={no}
+        />
+      )}
+    </div>
+  );
+}
+
+function CoachRow({
+  label,
+  className,
+  coaches,
+}: {
+  label: string;
+  className: string;
+  coaches: DashboardRollModel[];
+}) {
+  return (
+    <div>
+      <p className={`text-xs font-medium ${className}`}>
+        {label} ({coaches.length})
+      </p>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {coaches.map((coach) => (
+          <span
+            key={coach.id}
+            className="inline-flex items-center rounded-md bg-background px-2 py-0.5 text-xs ring-1 ring-border"
+          >
+            {coach.full_name}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

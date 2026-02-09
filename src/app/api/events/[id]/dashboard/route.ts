@@ -177,13 +177,24 @@ export async function GET(
       }));
 
     const allRiders = [...groupMinors, ...groupAdults];
-    const coachCounts = {
-      confirmed: rmConfirmed.filter((rm) => rm.assigned_group_id === g.id).length,
-      maybe: rmMaybe.filter((rm) => rm.assigned_group_id === g.id).length,
-      no: allRollModels.filter((rm) => {
+    const confirmedCoaches = rmConfirmed
+      .filter((rm) => rm.assigned_group_id === g.id)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    const maybeCoaches = rmMaybe
+      .filter((rm) => rm.assigned_group_id === g.id)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    const noCoaches = allRollModels
+      .filter((rm) => {
         const rsvp = selfRsvpMap.get(rm.id);
         return rsvp?.status === "no" && rsvp.assigned_group_id === g.id;
-      }).length,
+      })
+      .map((rm) => buildRollModelWithAssignment(rm, g.id))
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+    const coachCounts = {
+      confirmed: confirmedCoaches.length,
+      maybe: maybeCoaches.length,
+      no: noCoaches.length,
     };
     const confirmedRidersInGroup = allRiders.filter((r) => r.status === "yes").length;
     const coachRiderRatio =
@@ -199,6 +210,11 @@ export async function GET(
       not_responded: allRiders.filter((r) => !r.status),
       coach_counts: coachCounts,
       coach_rider_ratio: coachRiderRatio,
+      coaches: {
+        confirmed: confirmedCoaches,
+        maybe: maybeCoaches,
+        no: noCoaches,
+      },
     };
   });
 

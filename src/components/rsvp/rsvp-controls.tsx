@@ -4,9 +4,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useMyRiders } from "@/hooks/use-my-riders";
-import { useMyRsvps, useSubmitRsvp } from "@/hooks/use-rsvp";
+import { useMyRollModelGroupIds } from "@/hooks/use-my-roll-model-groups";
+import { useClearRsvp, useMyRsvps, useSubmitRsvp } from "@/hooks/use-rsvp";
 import { RsvpButtonGroup } from "./rsvp-button-group";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -29,6 +31,7 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
   );
   const { data: myRiders, isLoading: ridersLoading } = useMyRiders(user?.id);
   const submitRsvp = useSubmitRsvp();
+  const clearRsvp = useClearRsvp();
 
   const canSelfRsvp =
     hasRole("roll_model") ||
@@ -36,19 +39,30 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
     hasRole("admin") ||
     hasRole("super_admin");
   const isRollModel = hasRole("roll_model");
+  const { data: myRollModelGroupIds, isLoading: rollModelGroupsLoading } =
+    useMyRollModelGroupIds(user?.id, isRollModel);
   const isParent = hasRole("parent");
-  const availableEventGroups = event.event_groups
+  const eventGroups = event.event_groups
     .map((entry) => entry.groups)
     .filter((group): group is NonNullable<typeof group> => Boolean(group));
+  const coachedGroupIdSet = new Set(myRollModelGroupIds ?? []);
+  const availableEventGroups = isRollModel
+    ? eventGroups.filter((group) => coachedGroupIdSet.has(group.id))
+    : eventGroups;
 
   const unassignedGroupOption = "__unassigned__";
   const [assignedGroupByEvent, setAssignedGroupByEvent] = useState<
     Record<string, string>
   >({});
-  const assignedGroupId =
+  const assignedGroupIdRaw =
     assignedGroupByEvent[eventId] ??
     myRsvps?.selfRsvp?.assigned_group_id ??
     unassignedGroupOption;
+  const assignedGroupId =
+    assignedGroupIdRaw === unassignedGroupOption ||
+    availableEventGroups.some((group) => group.id === assignedGroupIdRaw)
+      ? assignedGroupIdRaw
+      : unassignedGroupOption;
 
   const isPastDeadline = event.rsvp_deadline
     ? new Date() > new Date(event.rsvp_deadline)
@@ -74,7 +88,59 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
     }
   }
 
-  if (rsvpLoading || ridersLoading) {
+  async function handleClearSelfRsvp() {
+    try {
+      await clearRsvp.mutateAsync({ event_id: eventId });
+      setAssignedGroupByEvent((previous) => ({
+        ...previous,
+        [eventId]: unassignedGroupOption,
+      }));
+      toast.success("RSVP cleared");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to clear RSVP");
+    }
+  }
+
+  function isRsvpStatus(value: string): value is RsvpStatus {
+    return value === "yes" || value === "maybe" || value === "no";
+  }
+
+  async function handleAssignedGroupChange(value: string) {
+    setAssignedGroupByEvent((previous) => ({
+      ...previous,
+      [eventId]: value,
+    }));
+
+    const selfStatus = myRsvps?.selfRsvp?.status;
+    if (!selfStatus || !isRsvpStatus(selfStatus)) {
+      return;
+    }
+
+    const nextAssignedGroupId =
+      value === unassignedGroupOption ? null : value;
+    const currentAssignedGroupId = myRsvps.selfRsvp?.assigned_group_id ?? null;
+
+    if (nextAssignedGroupId === currentAssignedGroupId) {
+      return;
+    }
+
+    try {
+      await submitRsvp.mutateAsync({
+        event_id: eventId,
+        status: selfStatus,
+        assigned_group_id: nextAssignedGroupId,
+      });
+      toast.success("Assigned group updated");
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to update assigned group",
+      );
+    }
+  }
+
+  if (rsvpLoading || ridersLoading || (isRollModel && rollModelGroupsLoading)) {
     return <Skeleton className="h-20" />;
   }
 
@@ -99,25 +165,38 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
       {canSelfRsvp && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Your RSVP</p>
-          <RsvpButtonGroup
-            currentStatus={(myRsvps?.selfRsvp?.status as RsvpStatus) ?? null}
-            onSelect={(status) => handleRsvp(status)}
-            disabled={submitRsvp.isPending}
-          />
-          {isRollModel && availableEventGroups.length > 0 && (
+          <div className="flex items-center gap-2">
+            <RsvpButtonGroup
+              currentStatus={(myRsvps?.selfRsvp?.status as RsvpStatus) ?? null}
+              onSelect={(status) => handleRsvp(status)}
+              disabled={submitRsvp.isPending || clearRsvp.isPending}
+            />
+            {myRsvps?.selfRsvp && (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs text-muted-foreground"
+                onClick={() => {
+                  void handleClearSelfRsvp();
+                }}
+                disabled={submitRsvp.isPending || clearRsvp.isPending}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          {isRollModel && (
             <div className="space-y-1 pt-1">
               <p className="text-xs text-muted-foreground">
                 Assigned coaching group (optional)
               </p>
               <Select
                 value={assignedGroupId}
-                onValueChange={(value) =>
-                  setAssignedGroupByEvent((previous) => ({
-                    ...previous,
-                    [eventId]: value,
-                  }))
-                }
-                disabled={submitRsvp.isPending}
+                onValueChange={(value) => {
+                  void handleAssignedGroupChange(value);
+                }}
+                disabled={submitRsvp.isPending || clearRsvp.isPending}
               >
                 <SelectTrigger className="w-full sm:w-[280px]">
                   <SelectValue placeholder="Select an assigned group" />
@@ -133,6 +212,16 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
                   ))}
                 </SelectContent>
               </Select>
+              {availableEventGroups.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  You are not assigned to coach any groups for this event.
+                </p>
+              )}
+              {!myRsvps?.selfRsvp?.status && (
+                <p className="text-xs text-muted-foreground">
+                  Pick Yes/Maybe/No once to save group assignment.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -160,7 +249,7 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
                     (riderRsvp?.status as RsvpStatus) ?? null
                   }
                   onSelect={(status) => handleRsvp(status, rider.id)}
-                  disabled={submitRsvp.isPending}
+                  disabled={submitRsvp.isPending || clearRsvp.isPending}
                 />
               </div>
             );

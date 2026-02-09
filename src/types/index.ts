@@ -109,6 +109,11 @@ export interface EventDashboardData {
       no: number;
     };
     coach_rider_ratio: number | null;
+    coaches: {
+      confirmed: DashboardRollModel[];
+      maybe: DashboardRollModel[];
+      no: DashboardRollModel[];
+    };
   }[];
   counts: {
     total_roll_models: number;
