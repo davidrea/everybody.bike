@@ -54,19 +54,29 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-
-  // Create auth user (this triggers the profile creation trigger)
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+  const callbackUrl = new URL("/auth/callback", request.url).toString();
+  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
     email,
-    email_confirm: false,
-    user_metadata: { full_name },
-  });
+    {
+      data: { full_name },
+      redirectTo: callbackUrl,
+    },
+  );
 
-  if (authError) {
-    return NextResponse.json({ error: authError.message }, { status: 500 });
+  if (inviteError) {
+    return NextResponse.json({ error: inviteError.message }, { status: 500 });
   }
 
-  // Update the profile with roles, invite info
+  const invitedUserId = inviteData.user?.id;
+
+  if (!invitedUserId) {
+    return NextResponse.json(
+      { error: "Invite was sent but user ID was not returned" },
+      { status: 500 },
+    );
+  }
+
+  // Update the profile with roles and invite metadata
   const { error: profileError } = await admin
     .from("profiles")
     .update({
@@ -76,22 +86,11 @@ export async function POST(request: Request) {
       invited_at: new Date().toISOString(),
       invited_by: user.id,
     })
-    .eq("id", authData.user.id);
+    .eq("id", invitedUserId);
 
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
-  // Send invite email
-  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email);
-
-  if (inviteError) {
-    // User was created but invite failed — still return success with warning
-    return NextResponse.json({
-      id: authData.user.id,
-      warning: "User created but invite email failed to send",
-    });
-  }
-
-  return NextResponse.json({ id: authData.user.id }, { status: 201 });
+  return NextResponse.json({ id: invitedUserId }, { status: 201 });
 }

@@ -50,15 +50,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.inviteUserByEmail(
-    targetProfile.email,
-  );
+  const callbackUrl = new URL("/auth/callback", request.url).toString();
+  const { error } = await supabase.auth.signInWithOtp({
+    email: targetProfile.email,
+    options: {
+      emailRedirectTo: callbackUrl,
+      shouldCreateUser: false,
+    },
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const admin = createAdminClient();
   // Update invited_at
   await admin
     .from("profiles")

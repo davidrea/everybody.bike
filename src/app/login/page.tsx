@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,50 @@ export default function LoginPage() {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    const hashParams = new URLSearchParams(
+      currentUrl.hash.startsWith("#") ? currentUrl.hash.slice(1) : currentUrl.hash,
+    );
+
+    const code = currentUrl.searchParams.get("code") ?? hashParams.get("code");
+    const tokenHash =
+      currentUrl.searchParams.get("token_hash") ?? hashParams.get("token_hash");
+    const type = currentUrl.searchParams.get("type") ?? hashParams.get("type");
+    const next = currentUrl.searchParams.get("next") ?? hashParams.get("next");
+
+    if (code || (tokenHash && type)) {
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      if (code) callbackUrl.searchParams.set("code", code);
+      if (tokenHash && type) {
+        callbackUrl.searchParams.set("token_hash", tokenHash);
+        callbackUrl.searchParams.set("type", type);
+      }
+      if (next) callbackUrl.searchParams.set("next", next);
+      window.location.replace(callbackUrl.toString());
+      return;
+    }
+
+    void supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        window.location.replace("/");
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        window.location.replace("/");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
