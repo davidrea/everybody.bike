@@ -49,7 +49,9 @@ export default function ProfilePage() {
   const removeRiderLink = useRemoveMyRiderLink();
 
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [email, setEmail] = useState(profile?.email ?? "");
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [editingRiderId, setEditingRiderId] = useState<string | null>(null);
 
   const [newFirstName, setNewFirstName] = useState("");
@@ -64,11 +66,21 @@ export default function ProfilePage() {
     if (profile?.full_name) {
       setFullName(profile.full_name);
     }
-  }, [profile?.full_name]);
+    if (profile?.email) {
+      setEmail(profile.email);
+    }
+  }, [profile?.full_name, profile?.email]);
 
   const canEditName = useMemo(
     () => profile && fullName.trim().length > 0 && fullName.trim() !== profile.full_name,
     [fullName, profile],
+  );
+  const canEditEmail = useMemo(
+    () =>
+      profile &&
+      email.trim().length > 0 &&
+      email.trim().toLowerCase() !== profile.email.toLowerCase(),
+    [email, profile],
   );
 
   async function handleSaveName() {
@@ -91,6 +103,29 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : "Failed to update name");
     } finally {
       setIsSavingName(false);
+    }
+  }
+
+  async function handleSaveEmail() {
+    if (!canEditEmail) return;
+    setIsSavingEmail(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to update email");
+      }
+      toast.success("Email updated");
+      qc.invalidateQueries({ queryKey: ["auth", "me"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update email");
+    } finally {
+      setIsSavingEmail(false);
     }
   }
 
@@ -208,6 +243,27 @@ export default function ProfilePage() {
                     >
                       <Save className="mr-2 h-4 w-4" />
                       {isSavingName ? "Saving..." : "Save Name"}
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Your email"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveEmail}
+                      disabled={!canEditEmail || isSavingEmail}
+                    >
+                      <Save className="mr-2 h-4 w-4" />
+                      {isSavingEmail ? "Saving..." : "Save Email"}
                     </Button>
                   </div>
                 </div>

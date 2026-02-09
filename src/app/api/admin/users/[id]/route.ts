@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const updateUserSchema = z.object({
-  full_name: z.string().trim().min(1).max(200),
+  full_name: z.string().trim().min(1).max(200).optional(),
+  email: z.string().trim().email().optional(),
+}).refine((data) => !!data.full_name || !!data.email, {
+  message: "At least one field is required",
 });
 
 export async function PATCH(
@@ -46,7 +49,7 @@ export async function PATCH(
 
   const { data: targetProfile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, email")
     .eq("id", targetUserId)
     .single();
 
@@ -55,19 +58,59 @@ export async function PATCH(
   }
 
   const admin = createAdminClient();
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({ full_name: parsed.data.full_name })
-    .eq("id", targetUserId);
+  const updates: { full_name?: string; email?: string } = {};
+  const authUpdates: {
+    email?: string;
+    user_metadata?: { full_name: string };
+  } = {};
 
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (parsed.data.full_name) {
+    updates.full_name = parsed.data.full_name;
+    authUpdates.user_metadata = { full_name: parsed.data.full_name };
   }
 
-  // Keep auth metadata in sync where available.
-  await admin.auth.admin.updateUserById(targetUserId, {
-    user_metadata: { full_name: parsed.data.full_name },
-  });
+  if (parsed.data.email) {
+    const normalizedEmail = parsed.data.email.toLowerCase();
+    if (normalizedEmail !== targetProfile.email.toLowerCase()) {
+      const { data: existingEmailProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", normalizedEmail)
+        .neq("id", targetUserId)
+        .maybeSingle();
+
+      if (existingEmailProfile) {
+        return NextResponse.json(
+          { error: "A user with this email address already exists" },
+          { status: 409 },
+        );
+      }
+
+      updates.email = normalizedEmail;
+      authUpdates.email = normalizedEmail;
+    }
+  }
+
+  if (authUpdates.email || authUpdates.user_metadata) {
+    const { error: authError } = await admin.auth.admin.updateUserById(
+      targetUserId,
+      authUpdates,
+    );
+    if (authError) {
+      return NextResponse.json({ error: authError.message }, { status: 500 });
+    }
+  }
+
+  if (updates.full_name || updates.email) {
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update(updates)
+      .eq("id", targetUserId);
+
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+  }
 
   return NextResponse.json({ success: true });
 }

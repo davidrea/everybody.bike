@@ -56,6 +56,8 @@ interface AdultEditorProps {
   user: Profile;
   onSubmitName: (fullName: string) => Promise<void>;
   isSavingName: boolean;
+  onSubmitEmail: (email: string) => Promise<void>;
+  isSavingEmail: boolean;
   onSubmitRoles: (roles: string[]) => Promise<void>;
   isSavingRoles: boolean;
 }
@@ -66,6 +68,8 @@ export function AdultEditor({
   user,
   onSubmitName,
   isSavingName,
+  onSubmitEmail,
+  isSavingEmail,
   onSubmitRoles,
   isSavingRoles,
 }: AdultEditorProps) {
@@ -73,6 +77,7 @@ export function AdultEditor({
   const isSuperAdmin = hasRole("super_admin");
 
   const [fullName, setFullName] = useState(user.full_name);
+  const [email, setEmail] = useState(user.email);
   const [selectedRoles, setSelectedRoles] = useState<string[]>(user.roles);
 
   const [firstName, setFirstName] = useState("");
@@ -92,6 +97,9 @@ export function AdultEditor({
 
   const canSaveName =
     fullName.trim().length > 0 && fullName.trim() !== user.full_name;
+  const canSaveEmail =
+    email.trim().length > 0 &&
+    email.trim().toLowerCase() !== user.email.toLowerCase();
 
   const canSaveRoles = useMemo(
     () =>
@@ -122,6 +130,15 @@ export function AdultEditor({
       toast.success("Name updated");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update name");
+    }
+  }
+
+  async function handleSaveEmail() {
+    try {
+      await onSubmitEmail(email.trim().toLowerCase());
+      toast.success("Email updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update email");
     }
   }
 
@@ -199,6 +216,26 @@ export function AdultEditor({
                 disabled={!canSaveName || isSavingName}
               >
                 {isSavingName ? "Saving..." : "Save Name"}
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor={`adult-email-${user.id}`}>Email</Label>
+                <Input
+                  id={`adult-email-${user.id}`}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email address"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveEmail}
+                disabled={!canSaveEmail || isSavingEmail}
+              >
+                {isSavingEmail ? "Saving..." : "Save Email"}
               </Button>
             </div>
           </section>

@@ -10,6 +10,7 @@ import {
   useUpdateUserRoles,
   useDeleteUser,
   useUpdateUserName,
+  useUpdateUserEmail,
 } from "@/hooks/use-users";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ export function UserList() {
   const resendInvite = useResendInvite();
   const updateRoles = useUpdateUserRoles();
   const updateName = useUpdateUserName();
+  const updateEmail = useUpdateUserEmail();
   const deleteUser = useDeleteUser();
 
   const [showInvite, setShowInvite] = useState(false);
@@ -113,6 +115,21 @@ export function UserList() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update name",
+      );
+      throw err;
+    }
+  }
+
+  async function handleUpdateEmail(email: string) {
+    if (!editingUser) return;
+    try {
+      await updateEmail.mutateAsync({
+        userId: editingUser.id,
+        email,
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update email",
       );
       throw err;
     }
@@ -256,6 +273,8 @@ export function UserList() {
           user={editingUser}
           onSubmitName={handleUpdateName}
           isSavingName={updateName.isPending}
+          onSubmitEmail={handleUpdateEmail}
+          isSavingEmail={updateEmail.isPending}
           onSubmitRoles={handleUpdateRoles}
           isSavingRoles={updateRoles.isPending}
         />
