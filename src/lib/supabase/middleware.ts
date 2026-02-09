@@ -37,6 +37,8 @@ export async function updateSession(request: NextRequest) {
   const publicPaths = [
     "/login",
     "/auth/callback",
+    "/api/auth/passkey/login",
+    "/api/auth/passkey/login/verify",
     "/api/admin/notifications/dispatch",
   ];
   const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));

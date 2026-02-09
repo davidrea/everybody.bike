@@ -7,6 +7,7 @@ import { startRegistration } from "@simplewebauthn/browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bike, KeyRound, Loader2, Plus, Trash2, ArrowRight } from "lucide-react";
 
@@ -23,9 +24,13 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<"name" | "passkey" | "riders" | "done">("name");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
   const [isParent, setIsParent] = useState(false);
   const [riders, setRiders] = useState<MinorRider[]>([{ firstName: "", lastName: "", dateOfBirth: "" }]);
   const [error, setError] = useState<string | null>(null);
+  const [passkeyMessage, setPasskeyMessage] = useState<string | null>(null);
+  const [passkeyName, setPasskeyName] = useState("");
+  const [allowOverwritePasskey, setAllowOverwritePasskey] = useState(false);
 
   async function handleNameSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,12 +69,14 @@ export default function OnboardingPage() {
     setLoading(false);
   }
 
-  async function handlePasskeyRegister() {
-    setLoading(true);
+  async function handlePasskeyRegister(advanceAfter = true) {
+    setIsRegisteringPasskey(true);
     setError(null);
+    setPasskeyMessage(null);
 
     try {
-      const optionsRes = await fetch("/api/auth/passkey/register");
+      const overwriteParam = allowOverwritePasskey ? "?overwrite=1" : "";
+      const optionsRes = await fetch(`/api/auth/passkey/register${overwriteParam}`);
       if (!optionsRes.ok) throw new Error("Failed to get registration options");
       const options = await optionsRes.json();
 
@@ -78,27 +85,38 @@ export default function OnboardingPage() {
       const verifyRes = await fetch("/api/auth/passkey/register/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credential),
+        body: JSON.stringify({
+          credential,
+          passkeyName: passkeyName.trim() || null,
+          allowOverwrite: allowOverwritePasskey,
+        }),
       });
 
       if (!verifyRes.ok) {
         const data = await verifyRes.json();
         throw new Error(data.error || "Registration failed");
       }
+
+      setPasskeyName("");
+      if (!advanceAfter) {
+        setPasskeyMessage("Passkey registered.");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Passkey registration failed";
       if (!msg.includes("ceremony was cancelled") && !msg.includes("AbortError")) {
         setError(msg);
-        setLoading(false);
-        return;
       }
+      setIsRegisteringPasskey(false);
+      return;
     }
 
-    setLoading(false);
-    if (isParent) {
-      setStep("riders");
-    } else {
-      await completeOnboarding();
+    setIsRegisteringPasskey(false);
+    if (advanceAfter) {
+      if (isParent) {
+        setStep("riders");
+      } else {
+        await completeOnboarding();
+      }
     }
   }
 
@@ -228,6 +246,49 @@ export default function OnboardingPage() {
                   )}
                   Continue
                 </Button>
+                <div className="rounded-lg border p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Passkey</p>
+                    <p className="text-sm text-muted-foreground">
+                      Register a passkey now to speed up sign-in later.
+                    </p>
+                  </div>
+                  <div className="mt-3 space-y-1.5">
+                    <Label htmlFor="passkey-name-inline">Passkey name (optional)</Label>
+                    <Input
+                      id="passkey-name-inline"
+                      value={passkeyName}
+                      onChange={(e) => setPasskeyName(e.target.value)}
+                      placeholder="e.g. MacBook Touch ID"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-3 w-full"
+                    onClick={() => handlePasskeyRegister(false)}
+                    disabled={isRegisteringPasskey}
+                  >
+                    {isRegisteringPasskey ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <KeyRound className="mr-2 h-4 w-4" />
+                    )}
+                    {isRegisteringPasskey ? "Registering..." : "Register passkey"}
+                  </Button>
+                  {process.env.NEXT_PUBLIC_WEBAUTHN_ALLOW_OVERWRITE_DEV === "true" && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Switch
+                        checked={allowOverwritePasskey}
+                        onCheckedChange={setAllowOverwritePasskey}
+                      />
+                      <Label>Allow overwrite (dev)</Label>
+                    </div>
+                  )}
+                  {passkeyMessage && (
+                    <p className="mt-2 text-sm text-success">{passkeyMessage}</p>
+                  )}
+                </div>
                 {error && (
                   <p className="text-sm text-destructive">{error}</p>
                 )}
@@ -245,13 +306,35 @@ export default function OnboardingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={handlePasskeyRegister} className="w-full" disabled={loading}>
-                {loading ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="passkey-name">Passkey name (optional)</Label>
+                <Input
+                  id="passkey-name"
+                  value={passkeyName}
+                  onChange={(e) => setPasskeyName(e.target.value)}
+                  placeholder="e.g. iPhone Face ID"
+                />
+              </div>
+              {process.env.NEXT_PUBLIC_WEBAUTHN_ALLOW_OVERWRITE_DEV === "true" && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={allowOverwritePasskey}
+                    onCheckedChange={setAllowOverwritePasskey}
+                  />
+                  <Label>Allow overwrite (dev)</Label>
+                </div>
+              )}
+              <Button
+                onClick={() => handlePasskeyRegister(true)}
+                className="w-full"
+                disabled={isRegisteringPasskey}
+              >
+                {isRegisteringPasskey ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <KeyRound className="mr-2 h-4 w-4" />
                 )}
-                Register passkey
+                {isRegisteringPasskey ? "Registering..." : "Register passkey"}
               </Button>
               <Button variant="ghost" className="w-full" onClick={skipPasskey}>
                 Skip for now

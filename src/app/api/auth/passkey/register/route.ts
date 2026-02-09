@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getRpIDFromHeaders, rpName } from "@/lib/passkey";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -13,6 +13,9 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+
+  const { searchParams } = new URL(request.url);
+  const allowOverwrite = searchParams.get("overwrite") === "1";
 
   // Get existing passkeys for this user
   const { data: existingCredentials } = await supabase
@@ -29,9 +32,11 @@ export async function GET() {
     userName: user.email || user.id,
     userID: new TextEncoder().encode(user.id),
     attestationType: "none",
-    excludeCredentials: (existingCredentials || []).map((cred) => ({
-      id: cred.id,
-    })),
+    excludeCredentials: allowOverwrite
+      ? []
+      : (existingCredentials || []).map((cred) => ({
+          id: cred.id,
+        })),
     authenticatorSelection: {
       residentKey: "preferred",
       userVerification: "preferred",
