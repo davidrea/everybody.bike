@@ -28,9 +28,241 @@ export async function GET(
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  const groupIds = (event.event_groups as { group_id: string }[]).map((eg) => eg.group_id);
+  const groupIds = (event.event_groups as { group_id: string }[]).map(
+    (eg) => eg.group_id,
+  );
 
-  // 2. Get roll models assigned to these groups
+  // 2. Get all RSVPs for this event
+  const { data: rsvps } = await supabase
+    .from("rsvps")
+    .select("*")
+    .eq("event_id", eventId);
+
+  // Build lookup for RSVPs
+  const selfRsvpMap = new Map<string, { status: string; assigned_group_id: string | null }>(); // user_id -> status + assignment
+  const riderRsvpMap = new Map<string, string>(); // rider_id -> status
+
+  (rsvps ?? []).forEach((r) => {
+    if (r.rider_id) {
+      riderRsvpMap.set(r.rider_id, r.status);
+    } else {
+      selfRsvpMap.set(r.user_id, {
+        status: r.status,
+        assigned_group_id: r.assigned_group_id,
+      });
+    }
+  });
+
+  if (!groupIds.length) {
+    const selfRsvpUserIds = Array.from(selfRsvpMap.keys());
+    const riderRsvpIds = Array.from(riderRsvpMap.keys());
+
+    const { data: selfProfiles } = selfRsvpUserIds.length
+      ? await supabase
+          .from("profiles")
+          .select(
+            "id, full_name, avatar_url, medical_alerts, media_opt_out, roles, rider_group_id",
+          )
+          .in("id", selfRsvpUserIds)
+      : { data: [] };
+
+    const { data: minorRiders } = riderRsvpIds.length
+      ? await supabase
+          .from("riders")
+          .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
+          .in("id", riderRsvpIds)
+      : { data: [] };
+
+    const rollModelCandidates =
+      (selfProfiles ?? []).filter(
+        (p) =>
+          p.roles?.includes("roll_model") ||
+          p.roles?.includes("admin") ||
+          p.roles?.includes("super_admin"),
+      ) ?? [];
+
+    const adultRiders =
+      (selfProfiles ?? []).filter((p) => p.roles?.includes("rider")) ?? [];
+
+    const riderGroupIds = new Set<string>();
+    (minorRiders ?? []).forEach((r) => {
+      if (r.group_id) riderGroupIds.add(r.group_id);
+    });
+    adultRiders.forEach((r) => {
+      if (r.rider_group_id) riderGroupIds.add(r.rider_group_id);
+    });
+
+    const { data: groupsData } = riderGroupIds.size
+      ? await supabase
+          .from("groups")
+          .select("*")
+          .in("id", Array.from(riderGroupIds))
+      : { data: [] };
+
+    const groups = groupsData ?? [];
+    const groupNameById = new Map(groups.map((group) => [group.id, group.name]));
+
+    const buildRollModelWithAssignment = (
+      rm: {
+        id: string;
+        full_name: string;
+        avatar_url: string | null;
+        medical_alerts: string | null;
+        media_opt_out: boolean;
+      },
+      assignedGroupId: string | null,
+    ) => ({
+      ...rm,
+      assigned_group_id: assignedGroupId,
+      assigned_group_name: assignedGroupId
+        ? (groupNameById.get(assignedGroupId) ?? null)
+        : null,
+    });
+
+    const rmConfirmed = rollModelCandidates
+      .map((rm) => {
+        const rsvp = selfRsvpMap.get(rm.id);
+        if (rsvp?.status !== "yes") return null;
+        return buildRollModelWithAssignment(rm, rsvp.assigned_group_id);
+      })
+      .filter((rm): rm is ReturnType<typeof buildRollModelWithAssignment> => rm !== null);
+
+    const rmMaybe = rollModelCandidates
+      .map((rm) => {
+        const rsvp = selfRsvpMap.get(rm.id);
+        if (rsvp?.status !== "maybe") return null;
+        return buildRollModelWithAssignment(rm, rsvp.assigned_group_id);
+      })
+      .filter((rm): rm is ReturnType<typeof buildRollModelWithAssignment> => rm !== null);
+
+    const rmNo = rollModelCandidates
+      .map((rm) => {
+        const rsvp = selfRsvpMap.get(rm.id);
+        if (rsvp?.status !== "no") return null;
+        return buildRollModelWithAssignment(rm, rsvp.assigned_group_id);
+      })
+      .filter((rm): rm is ReturnType<typeof buildRollModelWithAssignment> => rm !== null);
+
+    const rmNotResponded: ReturnType<typeof buildRollModelWithAssignment>[] = [];
+
+    const rmConfirmedUnassigned = rmConfirmed.filter(
+      (rm) => rm.assigned_group_id === null,
+    );
+
+    const unassignedGroup = {
+      id: "unassigned",
+      name: "Unassigned",
+      color: "#9CA3AF",
+      description: null,
+      sort_order: 0,
+      created_at: new Date().toISOString(),
+    };
+
+    const hasRiders = (minorRiders?.length ?? 0) + adultRiders.length > 0;
+    const hasUnassignedRiders =
+      (minorRiders ?? []).some((r) => !r.group_id) ||
+      adultRiders.some((r) => !r.rider_group_id);
+
+    const groupsForRiders = !hasRiders
+      ? []
+      : hasUnassignedRiders
+        ? [...groups, unassignedGroup]
+        : groups.length
+          ? groups
+          : [unassignedGroup];
+
+    const ridersByGroup = groupsForRiders.map((g) => {
+      const groupMinors = (minorRiders ?? [])
+        .filter((r) => (g.id === "unassigned" ? !r.group_id : r.group_id === g.id))
+        .map((r) => ({
+          id: r.id,
+          name: `${r.first_name} ${r.last_name}`,
+          avatar_url: null,
+          group_id: r.group_id,
+          group_name: g.name,
+          is_minor: true,
+          status: (riderRsvpMap.get(r.id) ?? null) as string | null,
+          medical_alerts: r.medical_notes,
+          media_opt_out: r.media_opt_out,
+        }));
+
+      const groupAdults = adultRiders
+        .filter((r) =>
+          g.id === "unassigned" ? !r.rider_group_id : r.rider_group_id === g.id,
+        )
+        .map((r) => ({
+          id: r.id,
+          name: r.full_name,
+          avatar_url: r.avatar_url,
+          group_id: r.rider_group_id,
+          group_name: g.name,
+          is_minor: false,
+          status: (selfRsvpMap.get(r.id)?.status ?? null) as string | null,
+          medical_alerts: r.medical_alerts,
+          media_opt_out: r.media_opt_out,
+        }));
+
+      const allRiders = [...groupMinors, ...groupAdults];
+      const confirmedRidersInGroup = allRiders.filter((r) => r.status === "yes").length;
+
+      return {
+        group: g,
+        confirmed: allRiders.filter((r) => r.status === "yes"),
+        maybe: allRiders.filter((r) => r.status === "maybe"),
+        no: allRiders.filter((r) => r.status === "no"),
+        not_responded: allRiders.filter((r) => !r.status),
+        coach_counts: {
+          confirmed: 0,
+          maybe: 0,
+          no: 0,
+        },
+        coach_rider_ratio: confirmedRidersInGroup > 0 ? 0 : null,
+        coaches: {
+          confirmed: [],
+          maybe: [],
+          no: [],
+        },
+      };
+    });
+
+    const totalRiders = ridersByGroup.reduce(
+      (sum, g) =>
+        sum +
+        g.confirmed.length +
+        g.maybe.length +
+        g.no.length +
+        g.not_responded.length,
+      0,
+    );
+    const confirmedRiders = ridersByGroup.reduce(
+      (sum, g) => sum + g.confirmed.length,
+      0,
+    );
+
+    const ratio =
+      confirmedRiders > 0 ? rmConfirmed.length / confirmedRiders : null;
+
+    return NextResponse.json({
+      event,
+      roll_models: {
+        confirmed: rmConfirmed,
+        maybe: rmMaybe,
+        no: rmNo,
+        not_responded: rmNotResponded,
+        confirmed_unassigned: rmConfirmedUnassigned,
+      },
+      riders_by_group: ridersByGroup,
+      counts: {
+        total_roll_models: rollModelCandidates.length,
+        confirmed_roll_models: rmConfirmed.length,
+        total_riders: totalRiders,
+        confirmed_riders: confirmedRiders,
+      },
+      ratio,
+    });
+  }
+
+  // 3. Get roll models assigned to these groups
   let rmGroupRows: {
     roll_model_id: string;
     profiles: {
@@ -70,7 +302,7 @@ export async function GET(
   });
   const allRollModels = Array.from(rmMap.values());
 
-  // 3. Get minor riders in these groups
+  // 4. Get minor riders in these groups
   let minorRiders: {
     id: string;
     first_name: string;
@@ -87,7 +319,7 @@ export async function GET(
     minorRiders = (data as typeof minorRiders) ?? [];
   }
 
-  // 4. Get adult riders in these groups
+  // 5. Get adult riders in these groups
   let adultRiders: {
     id: string;
     full_name: string;
@@ -104,27 +336,6 @@ export async function GET(
       .contains("roles", ["rider"]);
     adultRiders = (data as typeof adultRiders) ?? [];
   }
-
-  // 5. Get all RSVPs for this event
-  const { data: rsvps } = await supabase
-    .from("rsvps")
-    .select("*")
-    .eq("event_id", eventId);
-
-  // Build lookup for RSVPs
-  const selfRsvpMap = new Map<string, { status: string; assigned_group_id: string | null }>(); // user_id -> status + assignment
-  const riderRsvpMap = new Map<string, string>(); // rider_id -> status
-
-  (rsvps ?? []).forEach((r) => {
-    if (r.rider_id) {
-      riderRsvpMap.set(r.rider_id, r.status);
-    } else {
-      selfRsvpMap.set(r.user_id, {
-        status: r.status,
-        assigned_group_id: r.assigned_group_id,
-      });
-    }
-  });
 
   // 6. Build groups data
   const groups = (event.event_groups as { group_id: string; groups: { id: string; name: string; color: string } }[])
