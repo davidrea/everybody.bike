@@ -135,8 +135,18 @@ export const scheduledNotificationSchema = z
     body: z.string().min(1, "Body is required").max(500),
     url: z.string().optional().or(z.literal("")),
     scheduled_for: z.string().min(1, "Scheduled time is required"),
-    target_type: z.enum(["all", "group", "event_rsvpd", "event_not_rsvpd"]),
+    target_type: z.enum([
+      "all",
+      "group",
+      "event_all",
+      "event_rsvpd",
+      "event_not_rsvpd",
+    ]),
     target_id: z.string().uuid().nullable().optional(),
+    category: z
+      .enum(["announcement", "reminder", "event_update", "custom_message"])
+      .optional(),
+    event_id: z.string().uuid().nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.url && data.url.length > 0) {
@@ -152,6 +162,7 @@ export const scheduledNotificationSchema = z
     }
     const needsTarget =
       data.target_type === "group" ||
+      data.target_type === "event_all" ||
       data.target_type === "event_rsvpd" ||
       data.target_type === "event_not_rsvpd";
     if (needsTarget && !data.target_id) {

@@ -3,11 +3,13 @@
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
 import { Sidebar } from "./sidebar";
+import { PwaInstallBanner } from "./pwa-install-banner";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="topo-bg min-h-screen">
       <Header />
+      <PwaInstallBanner />
       <div className="flex">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-x-clip pb-20 md:pb-0">

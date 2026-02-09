@@ -39,7 +39,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { InviteFormValues } from "@/lib/validators";
-import type { Profile } from "@/types";
+import type { AdminProfile } from "@/types";
 
 const roleBadgeVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   super_admin: "destructive",
@@ -69,8 +69,8 @@ export function UserList() {
   const deleteUser = useDeleteUser();
 
   const [showInvite, setShowInvite] = useState(false);
-  const [editingUser, setEditingUser] = useState<Profile | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminProfile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminProfile | null>(null);
 
   async function handleInvite(values: InviteFormValues) {
     try {
@@ -238,6 +238,12 @@ export function UserList() {
                   </Badge>
                 ))}
                 <Badge
+                  variant={user.push_enabled ? "default" : "outline"}
+                  className="text-xs"
+                >
+                  {user.push_enabled ? "Push On" : "Push Off"}
+                </Badge>
+                <Badge
                   variant={
                     user.invite_status === "accepted" ? "default" : "secondary"
                   }
@@ -260,6 +266,7 @@ export function UserList() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Roles</TableHead>
+              <TableHead>Push</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-28">Actions</TableHead>
             </TableRow>
@@ -291,6 +298,11 @@ export function UserList() {
                       </Badge>
                     ))}
                   </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={user.push_enabled ? "default" : "outline"} className="text-xs">
+                    {user.push_enabled ? "On" : "Off"}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <Badge
@@ -343,7 +355,7 @@ export function UserList() {
             {users?.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="py-8 text-center text-muted-foreground"
                 >
                   No users yet. Send your first invite.

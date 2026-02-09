@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { KeyRound, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import {
+  Calendar,
+  Copy,
+  KeyRound,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -74,6 +85,10 @@ export default function ProfilePage() {
   const [isLoadingPasskeys, setIsLoadingPasskeys] = useState(false);
   const [isSavingPasskey, setIsSavingPasskey] = useState<string | null>(null);
   const [allowOverwritePasskey, setAllowOverwritePasskey] = useState(false);
+  const [calendarLink, setCalendarLink] = useState("");
+  const [calendarWebcalLink, setCalendarWebcalLink] = useState("");
+  const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
+  const [isRotatingCalendar, setIsRotatingCalendar] = useState(false);
 
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
@@ -101,6 +116,12 @@ export default function ProfilePage() {
       void loadPasskeys();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (profile) {
+      void loadCalendarLink();
+    }
+  }, [profile?.id]);
 
   const canEditName = useMemo(
     () => profile && fullName.trim().length > 0 && fullName.trim() !== profile.full_name,
@@ -294,6 +315,58 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : "Failed to remove passkey");
     } finally {
       setIsSavingPasskey(null);
+    }
+  }
+
+  async function loadCalendarLink() {
+    setIsLoadingCalendar(true);
+    try {
+      const res = await fetch("/api/calendar");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to load calendar link");
+      }
+      const data = await res.json();
+      setCalendarLink(data.url ?? "");
+      setCalendarWebcalLink(data.webcal_url ?? "");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load calendar link");
+    } finally {
+      setIsLoadingCalendar(false);
+    }
+  }
+
+  async function handleCopyCalendarLink() {
+    if (!calendarLink) return;
+    try {
+      await navigator.clipboard.writeText(calendarLink);
+      toast.success("Calendar link copied");
+    } catch {
+      toast.error("Unable to copy link");
+    }
+  }
+
+  async function handleOpenCalendarLink() {
+    if (!calendarWebcalLink) return;
+    window.open(calendarWebcalLink, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleRotateCalendarLink() {
+    setIsRotatingCalendar(true);
+    try {
+      const res = await fetch("/api/calendar", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to rotate calendar link");
+      }
+      const data = await res.json();
+      setCalendarLink(data.url ?? "");
+      setCalendarWebcalLink(data.webcal_url ?? "");
+      toast.success("Calendar link updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to rotate calendar link");
+    } finally {
+      setIsRotatingCalendar(false);
     }
   }
 
@@ -533,6 +606,73 @@ export default function ProfilePage() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  <div className="rounded-md border p-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Calendar Feed</p>
+                      <p className="text-sm text-muted-foreground">
+                        Subscribe to your club calendar in Google Calendar, Apple
+                        Calendar, or Outlook. RSVP status is included.
+                      </p>
+                    </div>
+                    {isLoadingCalendar ? (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        Loading calendar link...
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="calendar-link">Calendar URL</Label>
+                          <Input
+                            id="calendar-link"
+                            value={calendarLink}
+                            readOnly
+                            placeholder="Calendar link will appear here"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCopyCalendarLink}
+                            disabled={!calendarLink}
+                          >
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy link
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleOpenCalendarLink}
+                            disabled={!calendarWebcalLink}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            Subscribe
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleRotateCalendarLink}
+                            disabled={isRotatingCalendar}
+                          >
+                            {isRotatingCalendar ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCcw className="mr-2 h-4 w-4" />
+                            )}
+                            {isRotatingCalendar ? "Updating..." : "Rotate link"}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Rotating the link disconnects any calendars already
+                          subscribed to this URL.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 

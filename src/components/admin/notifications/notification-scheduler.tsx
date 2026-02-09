@@ -27,6 +27,7 @@ import {
 const targetTypeOptions: { value: NotificationTargetType; label: string }[] = [
   { value: "all", label: "All users" },
   { value: "group", label: "Specific group" },
+  { value: "event_all", label: "Event audience (all)" },
   { value: "event_rsvpd", label: "RSVP'd to event" },
   { value: "event_not_rsvpd", label: "Not RSVP'd to event" },
 ];
@@ -63,7 +64,11 @@ export function NotificationScheduler() {
         label: group.name,
       }));
     }
-    if (targetType === "event_rsvpd" || targetType === "event_not_rsvpd") {
+    if (
+      targetType === "event_all" ||
+      targetType === "event_rsvpd" ||
+      targetType === "event_not_rsvpd"
+    ) {
       return (events ?? []).map((event: { id: string; title: string; starts_at: string }) => ({
         value: event.id,
         label: `${event.title} (${formatDateTime(event.starts_at)})`,
@@ -268,18 +273,35 @@ function ScheduledNotificationRow({
       return group ? `Group: ${group.name}` : "Group";
     }
     const event = events.find((e) => e.id === notification.target_id);
+    if (notification.target_type === "event_all") {
+      return event ? `Event audience: ${event.title}` : "Event audience";
+    }
     if (notification.target_type === "event_rsvpd") {
       return event ? `RSVP'd: ${event.title}` : "RSVP'd to event";
     }
     return event ? `Not RSVP'd: ${event.title}` : "Not RSVP'd to event";
   }, [events, groups, notification.target_id, notification.target_type]);
 
+  const categoryLabel = useMemo(() => {
+    switch (notification.category) {
+      case "announcement":
+        return "Announcement";
+      case "reminder":
+        return "Reminder";
+      case "event_update":
+        return "Event update";
+      case "custom_message":
+      default:
+        return "Custom";
+    }
+  }, [notification.category]);
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">
       <div>
         <p className="text-sm font-medium">{notification.title}</p>
         <p className="text-xs text-muted-foreground">
-          {targetLabel} · {formatDateTime(notification.scheduled_for)}
+          {categoryLabel} · {targetLabel} · {formatDateTime(notification.scheduled_for)}
         </p>
         <p className="text-xs text-muted-foreground">
           Status: {notification.sent ? "Sent" : "Pending"}

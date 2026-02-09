@@ -72,7 +72,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const { title, body: messageBody, url, scheduled_for, target_type, target_id } = parsed.data;
+  const {
+    title,
+    body: messageBody,
+    url,
+    scheduled_for,
+    target_type,
+    target_id,
+    category,
+    event_id,
+  } = parsed.data;
 
   const { data, error } = await supabase
     .from("scheduled_notifications")
@@ -83,6 +92,8 @@ export async function POST(request: Request) {
       scheduled_for,
       target_type,
       target_id: target_id ?? null,
+      category: category ?? "custom_message",
+      event_id: event_id ?? (target_type === "event_all" ? target_id ?? null : null),
       created_by: user.id,
     })
     .select()

@@ -20,8 +20,14 @@ export type NotificationPreferences = {
 export type NotificationTargetType =
   | "all"
   | "group"
+  | "event_all"
   | "event_rsvpd"
   | "event_not_rsvpd";
+export type NotificationCategory =
+  | "announcement"
+  | "reminder"
+  | "event_update"
+  | "custom_message";
 export type ScheduledNotification = {
   id: string;
   title: string;
@@ -30,6 +36,8 @@ export type ScheduledNotification = {
   scheduled_for: string;
   target_type: NotificationTargetType;
   target_id: string | null;
+  category: NotificationCategory;
+  event_id: string | null;
   sent: boolean;
   created_by: string | null;
   created_at: string;
@@ -53,6 +61,11 @@ export type InviteStatus = (typeof INVITE_STATUSES)[number];
 export interface EventWithGroups extends Event {
   event_groups: { group_id: string; groups: Group }[];
   profiles: Pick<Profile, "id" | "full_name"> | null;
+}
+
+export interface AdminProfile extends Profile {
+  push_enabled?: boolean;
+  push_count?: number;
 }
 
 export interface RsvpWithDetails extends Rsvp {

@@ -615,6 +615,7 @@ npm run format
 - Passkey credentials store bytea public keys correctly; login updates `last_used_at`.
 - Added dev-only overwrite toggle for passkey registration (`NEXT_PUBLIC_WEBAUTHN_ALLOW_OVERWRITE_DEV`).
 - Configured Supabase Auth SMTP for Mailgun; email sending still blocked pending Mailgun domain verification/allowed sender domain.
+- Added per-user calendar feed (ICS) with RSVP status, secured by a rotatable token, plus Profile UI to copy/subscribe/rotate.
 
 ---
 

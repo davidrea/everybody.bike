@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Profile } from "@/types";
+import type { AdminProfile } from "@/types";
 import type { InviteFormValues, RoleUpdateValues } from "@/lib/validators";
 
 function buildUserQueryString(filters?: { role?: string; invite_status?: string }): string {
@@ -16,7 +16,7 @@ function buildUserQueryString(filters?: { role?: string; invite_status?: string 
 export function useUsers(filters?: { role?: string; invite_status?: string }) {
   return useQuery({
     queryKey: ["users", filters],
-    queryFn: async (): Promise<Profile[]> => {
+    queryFn: async (): Promise<AdminProfile[]> => {
       const res = await fetch(`/api/admin/users${buildUserQueryString(filters)}`);
       if (!res.ok) throw new Error("Failed to fetch users");
       return res.json();

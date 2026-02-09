@@ -29,7 +29,10 @@ export async function GET(request: Request) {
   const role = searchParams.get("role");
   const inviteStatus = searchParams.get("invite_status");
 
-  let query = supabase.from("profiles").select("*").order("full_name");
+  let query = supabase
+    .from("profiles")
+    .select("*, push_subscriptions(id)")
+    .order("full_name");
 
   if (role) {
     query = query.contains("roles", [role]);
@@ -44,5 +47,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  const enriched =
+    data?.map((row) => ({
+      ...row,
+      push_enabled: (row.push_subscriptions?.length ?? 0) > 0,
+      push_count: row.push_subscriptions?.length ?? 0,
+      push_subscriptions: undefined,
+    })) ?? [];
+
+  return NextResponse.json(enriched);
 }

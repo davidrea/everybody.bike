@@ -3,6 +3,75 @@ import { createClient } from "@/lib/supabase/server";
 import { eventSchema } from "@/lib/validators";
 import { generateOccurrences } from "@/lib/recurrence";
 import crypto from "crypto";
+import {
+  buildEventNotificationContent,
+  getAnnouncementScheduleTime,
+  getDefaultReminderTimes,
+} from "@/lib/event-notifications";
+
+type EventScheduleInput = {
+  id: string;
+  title: string;
+  starts_at: string;
+  location: string | null;
+};
+
+async function scheduleEventNotifications(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  events: EventScheduleInput[],
+  createdBy: string,
+) {
+  const now = new Date();
+  const inserts: {
+    title: string;
+    body: string;
+    url: string;
+    scheduled_for: string;
+    target_type: "event_all" | "event_not_rsvpd";
+    target_id: string;
+    category: "announcement" | "reminder";
+    event_id: string;
+    created_by: string;
+  }[] = [];
+
+  for (const event of events) {
+    const startsAt = new Date(event.starts_at);
+    const announcementTime = getAnnouncementScheduleTime(now, startsAt);
+    if (announcementTime) {
+      const content = buildEventNotificationContent(event, "announcement");
+      inserts.push({
+        ...content,
+        scheduled_for: announcementTime.toISOString(),
+        target_type: "event_all",
+        target_id: event.id,
+        category: "announcement",
+        event_id: event.id,
+        created_by: createdBy,
+      });
+    }
+
+    const reminderTimes = getDefaultReminderTimes(startsAt, now);
+    for (const reminderTime of reminderTimes) {
+      const content = buildEventNotificationContent(event, "reminder");
+      inserts.push({
+        ...content,
+        scheduled_for: reminderTime.toISOString(),
+        target_type: "event_all",
+        target_id: event.id,
+        category: "reminder",
+        event_id: event.id,
+        created_by: createdBy,
+      });
+    }
+  }
+
+  if (inserts.length === 0) return;
+
+  const { error } = await supabase.from("scheduled_notifications").insert(inserts);
+  if (error) {
+    throw error;
+  }
+}
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -153,6 +222,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: egError.message }, { status: 500 });
     }
 
+    try {
+      await scheduleEventNotifications(
+        supabase,
+        created.map((evt) => ({
+          id: evt.id,
+          title: evt.title,
+          starts_at: evt.starts_at,
+          location: evt.location,
+        })),
+        user.id,
+      );
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Failed to schedule notifications" },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json(
       { count: created.length, series_id: seriesId },
       { status: 201 },
@@ -194,6 +281,26 @@ export async function POST(request: Request) {
 
   if (egError) {
     return NextResponse.json({ error: egError.message }, { status: 500 });
+  }
+
+  try {
+    await scheduleEventNotifications(
+      supabase,
+      [
+        {
+          id: event.id,
+          title: event.title,
+          starts_at: event.starts_at,
+          location: event.location,
+        },
+      ],
+      user.id,
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to schedule notifications" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json(event, { status: 201 });

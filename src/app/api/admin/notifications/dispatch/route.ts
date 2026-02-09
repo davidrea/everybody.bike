@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWebPushNotification } from "@/lib/push-server";
+import { sendEmail, isEmailConfigured } from "@/lib/email";
+import { getBaseUrl } from "@/lib/url";
 
 const MAX_BATCH = 25;
 
@@ -125,6 +127,19 @@ async function getEventNotRsvpdAudience(
   return Array.from(new Set([...adultNotResponded, ...parentIds]));
 }
 
+async function getEventAudience(
+  admin: ReturnType<typeof createAdminClient>,
+  eventId: string,
+) {
+  const groupIds = await getEventGroupIds(admin, eventId);
+  if (groupIds.length === 0) return [];
+
+  const adultAudience = await getGroupAdultAudience(admin, groupIds);
+  const parentAudience = await getGroupParents(admin, groupIds);
+
+  return Array.from(new Set([...adultAudience, ...parentAudience]));
+}
+
 async function getTargetUsers(
   admin: ReturnType<typeof createAdminClient>,
   notification: {
@@ -152,6 +167,11 @@ async function getTargetUsers(
       const ids = Array.from(new Set(rsvps.map((row) => row.user_id)));
       return filterAcceptedUsers(admin, ids);
     }
+    case "event_all": {
+      if (!notification.target_id) return [];
+      const ids = await getEventAudience(admin, notification.target_id);
+      return filterAcceptedUsers(admin, ids);
+    }
     case "event_not_rsvpd": {
       if (!notification.target_id) return [];
       const ids = await getEventNotRsvpdAudience(admin, notification.target_id);
@@ -165,16 +185,26 @@ async function getTargetUsers(
 async function filterByPreferences(
   admin: ReturnType<typeof createAdminClient>,
   userIds: string[],
+  category?: string | null,
 ) {
   if (userIds.length === 0) return [];
   const allowed = new Set<string>(userIds);
+  const preferenceField =
+    category === "announcement"
+      ? "new_event"
+      : category === "reminder"
+        ? "rsvp_reminder"
+        : category === "event_update"
+          ? "event_update"
+          : "custom_message";
   for (const batch of chunk(userIds, 500)) {
     const { data } = await admin
       .from("notification_preferences")
-      .select("user_id, custom_message")
+      .select(`user_id, ${preferenceField}`)
       .in("user_id", batch);
     data?.forEach((row) => {
-      if (row.custom_message === false) {
+      const enabled = row[preferenceField as keyof typeof row];
+      if (enabled === false) {
         allowed.delete(row.user_id);
       }
     });
@@ -202,6 +232,38 @@ async function getSubscriptions(
     if (data) subscriptions.push(...data);
   }
   return subscriptions;
+}
+
+async function getProfileEmails(
+  admin: ReturnType<typeof createAdminClient>,
+  userIds: string[],
+) {
+  if (userIds.length === 0) return new Map<string, string>();
+  const emails = new Map<string, string>();
+  for (const batch of chunk(userIds, 500)) {
+    const { data } = await admin
+      .from("profiles")
+      .select("id, email")
+      .in("id", batch);
+    data?.forEach((row) => {
+      if (row.email) emails.set(row.id, row.email);
+    });
+  }
+  return emails;
+}
+
+function resolveUrl(baseUrl: string, url: string | null) {
+  if (!url) return baseUrl;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return `${baseUrl}${url}`;
+  return `${baseUrl}/${url}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export async function POST(request: Request) {
@@ -240,10 +302,17 @@ export async function POST(request: Request) {
   let sentCount = 0;
   let failedCount = 0;
   let removedSubscriptions = 0;
+  let emailSent = 0;
+  let emailFailed = 0;
+  let emailSkipped = 0;
 
   for (const notification of scheduled) {
     const targetUsers = await getTargetUsers(admin, notification);
-    const optedInUsers = await filterByPreferences(admin, targetUsers);
+    const optedInUsers = await filterByPreferences(
+      admin,
+      targetUsers,
+      notification.category,
+    );
     const subscriptions = await getSubscriptions(admin, optedInUsers);
 
     const payload = {
@@ -252,10 +321,14 @@ export async function POST(request: Request) {
       url: notification.url ?? "/",
     };
 
+    const usersWithSubscriptions = new Set(subscriptions.map((s) => s.user_id));
+    const usersWithSuccess = new Set<string>();
+
     for (const subscription of subscriptions) {
       try {
         await sendWebPushNotification(subscription, payload);
         sentCount += 1;
+        usersWithSuccess.add(subscription.user_id);
       } catch (err) {
         failedCount += 1;
         const statusCode =
@@ -265,6 +338,46 @@ export async function POST(request: Request) {
         if (statusCode === 404 || statusCode === 410) {
           await admin.from("push_subscriptions").delete().eq("id", subscription.id);
           removedSubscriptions += 1;
+        }
+      }
+    }
+
+    const fallbackUsers = optedInUsers.filter(
+      (id) => !usersWithSuccess.has(id) && !usersWithSubscriptions.has(id),
+    );
+
+    if (fallbackUsers.length > 0) {
+      if (!isEmailConfigured()) {
+        emailSkipped += fallbackUsers.length;
+      } else {
+        const baseUrl = getBaseUrl(request);
+        const resolvedUrl = notification.url ? resolveUrl(baseUrl, notification.url) : "";
+        const emails = await getProfileEmails(admin, fallbackUsers);
+        for (const userId of fallbackUsers) {
+          const email = emails.get(userId);
+          if (!email) {
+            emailFailed += 1;
+            continue;
+          }
+          try {
+            const text = `${notification.body}${
+              resolvedUrl ? `\n\n${resolvedUrl}` : ""
+            }`;
+            const html = `<p>${escapeHtml(notification.body)}</p>${
+              resolvedUrl
+                ? `<p><a href=\"${resolvedUrl}\">View details</a></p>`
+                : ""
+            }`;
+            await sendEmail({
+              to: email,
+              subject: notification.title,
+              text,
+              html,
+            });
+            emailSent += 1;
+          } catch {
+            emailFailed += 1;
+          }
         }
       }
     }
@@ -280,5 +393,8 @@ export async function POST(request: Request) {
     sent: sentCount,
     failed: failedCount,
     removed_subscriptions: removedSubscriptions,
+    email_sent: emailSent,
+    email_failed: emailFailed,
+    email_skipped: emailSkipped,
   });
 }

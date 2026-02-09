@@ -29,6 +29,7 @@ import { RecurringEditDialog } from "./recurring-edit-dialog";
 import { RsvpControls } from "@/components/rsvp/rsvp-controls";
 import { EventDashboard } from "./event-dashboard";
 import { humanizeRRule } from "@/lib/recurrence";
+import { EventNotificationSchedule } from "./event-notification-schedule";
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
@@ -249,6 +250,8 @@ export function EventDetail({ eventId }: { eventId: string }) {
           <RsvpControls eventId={eventId} event={event} />
         </CardContent>
       </Card>
+
+      {admin && <EventNotificationSchedule event={event} />}
 
       {/* Event Dashboard */}
       <EventDashboard eventId={eventId} />
