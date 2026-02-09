@@ -90,7 +90,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
           All Events
         </Link>
 
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
               <h1 className="font-heading text-3xl font-bold tracking-tight">
@@ -101,7 +101,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
           </div>
 
           {admin && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/events/${eventId}/report`}>
                   <Printer className="mr-1 h-4 w-4" />

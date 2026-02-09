@@ -219,7 +219,7 @@ export function AdultEditor({
         if (!nextOpen) onOpenChange(false);
       }}
     >
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="w-[96vw] max-w-[1400px] max-h-[85vh] overflow-y-auto sm:w-[92vw] sm:max-w-[1400px]">
         <DialogHeader>
           <DialogTitle>Edit Adult</DialogTitle>
           <DialogDescription>
@@ -235,242 +235,258 @@ export function AdultEditor({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Profile</h3>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor={`adult-full-name-${user.id}`}>Full Name</Label>
-                <Input
-                  id={`adult-full-name-${user.id}`}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Full name"
-                />
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSaveName}
-                disabled={!canSaveName || isSavingName}
-              >
-                {isSavingName ? "Saving..." : "Save Name"}
-              </Button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor={`adult-email-${user.id}`}>Email</Label>
-                <Input
-                  id={`adult-email-${user.id}`}
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email address"
-                />
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSaveEmail}
-                disabled={!canSaveEmail || isSavingEmail}
-              >
-                {isSavingEmail ? "Saving..." : "Save Email"}
-              </Button>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`adult-medical-alerts-${user.id}`}>Medical Alerts</Label>
-              <Textarea
-                id={`adult-medical-alerts-${user.id}`}
-                value={medicalAlerts}
-                onChange={(e) => setMedicalAlerts(e.target.value)}
-                placeholder="Allergies, medications, emergency considerations..."
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Switch checked={mediaOptOut} onCheckedChange={setMediaOptOut} />
-                <Label>Media opt-out</Label>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSaveSafety}
-                disabled={!canSaveSafety || isSavingSafety}
-              >
-                {isSavingSafety ? "Saving..." : "Save Safety"}
-              </Button>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Roles</h3>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {ROLES.map((role) => {
-                const isAdminRole = role === "admin" || role === "super_admin";
-                const disabled = isAdminRole && !isSuperAdmin;
-
-                return (
-                  <div key={role} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`role-${user.id}-${role}`}
-                      checked={selectedRoles.includes(role)}
-                      onCheckedChange={() => toggleRole(role)}
-                      disabled={disabled}
-                    />
-                    <Label
-                      htmlFor={`role-${user.id}-${role}`}
-                      className={disabled ? "text-muted-foreground" : ""}
-                    >
-                      {roleLabels[role]}
-                      {disabled ? " (super admin only)" : ""}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSaveRoles}
-                disabled={!canSaveRoles || isSavingRoles}
-              >
-                {isSavingRoles ? "Saving..." : "Save Roles"}
-              </Button>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Linked Children</h3>
-            {linkedRidersLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-12" />
-                <Skeleton className="h-12" />
-              </div>
-            ) : linkedRiders && linkedRiders.length > 0 ? (
-              <div className="space-y-2">
-                {linkedRiders.map((rider) => (
-                  <AdminRiderSafetyCard
-                    key={`${rider.rider_id}-${rider.medical_alerts ?? ""}-${rider.media_opt_out}`}
-                    rider={rider}
-                    userId={user.id}
-                    onUnlink={handleUnlinkRider}
-                    onSave={async (values) => {
-                      await updateRider.mutateAsync({
-                        userId: user.id,
-                        values,
-                      });
-                    }}
-                    isBusy={unlinkRider.isPending || updateRider.isPending}
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="space-y-6">
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">Profile</h3>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`adult-full-name-${user.id}`}>Full Name</Label>
+                  <Input
+                    id={`adult-full-name-${user.id}`}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Full name"
                   />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No linked children yet.
-              </p>
-            )}
-          </section>
-
-          <section className="space-y-3 rounded-md border p-3">
-            <h3 className="text-sm font-semibold">Add Child</h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor={`child-first-name-${user.id}`}>First Name</Label>
-                <Input
-                  id={`child-first-name-${user.id}`}
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="First name"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`child-last-name-${user.id}`}>Last Name</Label>
-                <Input
-                  id={`child-last-name-${user.id}`}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Last name"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`child-dob-${user.id}`}>Date of Birth</Label>
-                <Input
-                  id={`child-dob-${user.id}`}
-                  type="date"
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Group</Label>
-                <Select value={groupId} onValueChange={setGroupId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups?.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Relationship</Label>
-                <Select
-                  value={relationship}
-                  onValueChange={(value) =>
-                    setRelationship(value as RiderParentRelationship)
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {relationshipOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end pb-2">
-                <div className="flex items-center gap-2">
-                  <Switch checked={isPrimary} onCheckedChange={setIsPrimary} />
-                  <Label>Primary contact</Label>
                 </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveName}
+                  disabled={!canSaveName || isSavingName}
+                >
+                  {isSavingName ? "Saving..." : "Save Name"}
+                </Button>
               </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Medical Alerts</Label>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`adult-email-${user.id}`}>Email</Label>
+                  <Input
+                    id={`adult-email-${user.id}`}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email address"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveEmail}
+                  disabled={!canSaveEmail || isSavingEmail}
+                >
+                  {isSavingEmail ? "Saving..." : "Save Email"}
+                </Button>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`adult-medical-alerts-${user.id}`}>Medical Alerts</Label>
                 <Textarea
-                  value={childMedicalAlerts}
-                  onChange={(e) => setChildMedicalAlerts(e.target.value)}
+                  id={`adult-medical-alerts-${user.id}`}
+                  value={medicalAlerts}
+                  onChange={(e) => setMedicalAlerts(e.target.value)}
                   placeholder="Allergies, medications, emergency considerations..."
                 />
               </div>
-              <div className="flex items-end pb-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Switch
-                    checked={childMediaOptOut}
-                    onCheckedChange={setChildMediaOptOut}
-                  />
+                  <Switch checked={mediaOptOut} onCheckedChange={setMediaOptOut} />
                   <Label>Media opt-out</Label>
                 </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveSafety}
+                  disabled={!canSaveSafety || isSavingSafety}
+                >
+                  {isSavingSafety ? "Saving..." : "Save Safety"}
+                </Button>
               </div>
-            </div>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                onClick={handleCreateChild}
-                disabled={createRider.isPending}
-              >
-                {createRider.isPending ? "Adding..." : "Add and Link Child"}
-              </Button>
-            </div>
-          </section>
+            </section>
+
+            <details className="rounded-md border p-3" open>
+              <summary className="cursor-pointer text-sm font-semibold">
+                Roles
+              </summary>
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {ROLES.map((role) => {
+                    const isAdminRole = role === "admin" || role === "super_admin";
+                    const disabled = isAdminRole && !isSuperAdmin;
+
+                    return (
+                      <div key={role} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`role-${user.id}-${role}`}
+                          checked={selectedRoles.includes(role)}
+                          onCheckedChange={() => toggleRole(role)}
+                          disabled={disabled}
+                        />
+                        <Label
+                          htmlFor={`role-${user.id}-${role}`}
+                          className={disabled ? "text-muted-foreground" : ""}
+                        >
+                          {roleLabels[role]}
+                          {disabled ? " (super admin only)" : ""}
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveRoles}
+                    disabled={!canSaveRoles || isSavingRoles}
+                  >
+                    {isSavingRoles ? "Saving..." : "Save Roles"}
+                  </Button>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div className="space-y-6">
+            <details className="rounded-md border p-3" open>
+              <summary className="cursor-pointer text-sm font-semibold">
+                Linked Children
+              </summary>
+              <div className="mt-3 space-y-3">
+                {linkedRidersLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-12" />
+                    <Skeleton className="h-12" />
+                  </div>
+                ) : linkedRiders && linkedRiders.length > 0 ? (
+                  <div className="space-y-2">
+                    {linkedRiders.map((rider) => (
+                      <AdminRiderSafetyCard
+                        key={`${rider.rider_id}-${rider.medical_alerts ?? ""}-${rider.media_opt_out}`}
+                        rider={rider}
+                        userId={user.id}
+                        onUnlink={handleUnlinkRider}
+                        onSave={async (values) => {
+                          await updateRider.mutateAsync({
+                            userId: user.id,
+                            values,
+                          });
+                        }}
+                        isBusy={unlinkRider.isPending || updateRider.isPending}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No linked children yet.
+                  </p>
+                )}
+              </div>
+            </details>
+
+            <details className="rounded-md border p-3">
+              <summary className="cursor-pointer text-sm font-semibold">
+                Add Child
+              </summary>
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`child-first-name-${user.id}`}>First Name</Label>
+                    <Input
+                      id={`child-first-name-${user.id}`}
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`child-last-name-${user.id}`}>Last Name</Label>
+                    <Input
+                      id={`child-last-name-${user.id}`}
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Last name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`child-dob-${user.id}`}>Date of Birth</Label>
+                    <Input
+                      id={`child-dob-${user.id}`}
+                      type="date"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Group</Label>
+                    <Select value={groupId} onValueChange={setGroupId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups?.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Relationship</Label>
+                    <Select
+                      value={relationship}
+                      onValueChange={(value) =>
+                        setRelationship(value as RiderParentRelationship)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {relationshipOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end pb-2">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={isPrimary} onCheckedChange={setIsPrimary} />
+                      <Label>Primary contact</Label>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Medical Alerts</Label>
+                    <Textarea
+                      value={childMedicalAlerts}
+                      onChange={(e) => setChildMedicalAlerts(e.target.value)}
+                      placeholder="Allergies, medications, emergency considerations..."
+                    />
+                  </div>
+                  <div className="flex items-end pb-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={childMediaOptOut}
+                        onCheckedChange={setChildMediaOptOut}
+                      />
+                      <Label>Media opt-out</Label>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleCreateChild}
+                    disabled={createRider.isPending}
+                  >
+                    {createRider.isPending ? "Adding..." : "Add and Link Child"}
+                  </Button>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

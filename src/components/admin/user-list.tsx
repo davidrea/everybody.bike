@@ -187,6 +187,73 @@ export function UserList() {
       </div>
 
       <div className="rounded-md border">
+        <div className="divide-y md:hidden">
+          {users?.map((user) => (
+            <div key={user.id} className="space-y-3 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-semibold">
+                      {user.full_name}
+                    </p>
+                    <SafetyIndicators
+                      medicalAlerts={user.medical_alerts}
+                      mediaOptOut={user.media_opt_out}
+                    />
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingUser(user)}
+                    title="Manage adult"
+                    aria-label={`Manage ${user.full_name}`}
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeleteTarget(user)}
+                    title="Delete user"
+                    aria-label={`Delete ${user.full_name}`}
+                    disabled={user.id === currentUser?.id}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {user.roles.map((role) => (
+                  <Badge
+                    key={role}
+                    variant={roleBadgeVariants[role] ?? "secondary"}
+                    className="text-xs"
+                  >
+                    {roleLabels[role] ?? role}
+                  </Badge>
+                ))}
+                <Badge
+                  variant={
+                    user.invite_status === "accepted" ? "default" : "secondary"
+                  }
+                  className="text-xs"
+                >
+                  {user.invite_status}
+                </Badge>
+              </div>
+            </div>
+          ))}
+          {users?.length === 0 && (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              No users found.
+            </div>
+          )}
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -197,7 +264,7 @@ export function UserList() {
               <TableHead className="w-28">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="hidden md:table-row-group">
             {users?.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">
