@@ -170,3 +170,38 @@ export function useUpdateUserEmail() {
     },
   });
 }
+
+export function useUpdateUserSafety() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      medicalAlerts,
+      mediaOptOut,
+    }: {
+      userId: string;
+      medicalAlerts: string;
+      mediaOptOut: boolean;
+    }) => {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          medical_alerts: medicalAlerts,
+          media_opt_out: mediaOptOut,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to update user safety preferences");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["auth", "me"] });
+      qc.invalidateQueries({ queryKey: ["admin-user-riders", vars.userId] });
+    },
+  });
+}

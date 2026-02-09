@@ -15,6 +15,8 @@ export interface AdminUserLinkedRider {
   group_id: string | null;
   group_name: string | null;
   group_color: string | null;
+  medical_alerts: string | null;
+  media_opt_out: boolean;
   relationship: RiderParentRelationship;
   is_primary: boolean;
 }
@@ -48,6 +50,8 @@ export function useCreateAdminUserRider() {
         last_name: string;
         date_of_birth?: string;
         group_id: string;
+        medical_alerts?: string;
+        media_opt_out: boolean;
         relationship: RiderParentRelationship;
         is_primary: boolean;
       };
@@ -67,6 +71,44 @@ export function useCreateAdminUserRider() {
       qc.invalidateQueries({ queryKey: ["admin-user-riders", vars.userId] });
       qc.invalidateQueries({ queryKey: ["admin-riders"] });
       qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
+export function useUpdateAdminUserRider() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      values,
+    }: {
+      userId: string;
+      values: {
+        rider_id: string;
+        first_name: string;
+        last_name: string;
+        date_of_birth?: string;
+        medical_alerts?: string;
+        media_opt_out: boolean;
+        relationship: RiderParentRelationship;
+        is_primary: boolean;
+      };
+    }) => {
+      const res = await fetch(`/api/admin/users/${userId}/riders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to update rider");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin-user-riders", vars.userId] });
+      qc.invalidateQueries({ queryKey: ["admin-riders"] });
     },
   });
 }

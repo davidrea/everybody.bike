@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -50,8 +51,11 @@ export default function ProfilePage() {
 
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
   const [email, setEmail] = useState(profile?.email ?? "");
+  const [medicalAlerts, setMedicalAlerts] = useState(profile?.medical_alerts ?? "");
+  const [mediaOptOut, setMediaOptOut] = useState(profile?.media_opt_out ?? false);
   const [isSavingName, setIsSavingName] = useState(false);
   const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isSavingSafety, setIsSavingSafety] = useState(false);
   const [editingRiderId, setEditingRiderId] = useState<string | null>(null);
 
   const [newFirstName, setNewFirstName] = useState("");
@@ -61,6 +65,8 @@ export default function ProfilePage() {
     useState<RiderParentRelationship>("parent");
   const [newIsPrimary, setNewIsPrimary] = useState(true);
   const [newGroupId, setNewGroupId] = useState("");
+  const [newMedicalAlerts, setNewMedicalAlerts] = useState("");
+  const [newMediaOptOut, setNewMediaOptOut] = useState(false);
 
   useEffect(() => {
     if (profile?.full_name) {
@@ -69,7 +75,9 @@ export default function ProfilePage() {
     if (profile?.email) {
       setEmail(profile.email);
     }
-  }, [profile?.full_name, profile?.email]);
+    setMedicalAlerts(profile?.medical_alerts ?? "");
+    setMediaOptOut(profile?.media_opt_out ?? false);
+  }, [profile?.full_name, profile?.email, profile?.medical_alerts, profile?.media_opt_out]);
 
   const canEditName = useMemo(
     () => profile && fullName.trim().length > 0 && fullName.trim() !== profile.full_name,
@@ -81,6 +89,13 @@ export default function ProfilePage() {
       email.trim().length > 0 &&
       email.trim().toLowerCase() !== profile.email.toLowerCase(),
     [email, profile],
+  );
+  const canEditSafety = useMemo(
+    () =>
+      profile &&
+      (medicalAlerts.trim() !== (profile.medical_alerts ?? "") ||
+        mediaOptOut !== profile.media_opt_out),
+    [medicalAlerts, mediaOptOut, profile],
   );
 
   async function handleSaveName() {
@@ -129,6 +144,34 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleSaveSafety() {
+    if (!profile) return;
+    setIsSavingSafety(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          medical_alerts: medicalAlerts,
+          media_opt_out: mediaOptOut,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to update safety preferences");
+      }
+      toast.success("Safety preferences updated");
+      qc.invalidateQueries({ queryKey: ["auth", "me"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update safety preferences",
+      );
+    } finally {
+      setIsSavingSafety(false);
+    }
+  }
+
   async function handleAddRider() {
     if (!newFirstName.trim() || !newLastName.trim()) {
       toast.error("First and last name are required");
@@ -142,6 +185,8 @@ export default function ProfilePage() {
         group_id: newGroupId || undefined,
         relationship: newRelationship,
         is_primary: newIsPrimary,
+        medical_alerts: newMedicalAlerts,
+        media_opt_out: newMediaOptOut,
       });
       toast.success("Youth rider added");
       setNewFirstName("");
@@ -150,6 +195,8 @@ export default function ProfilePage() {
       setNewRelationship("parent");
       setNewIsPrimary(true);
       setNewGroupId("");
+      setNewMedicalAlerts("");
+      setNewMediaOptOut(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add rider");
     }
@@ -159,6 +206,8 @@ export default function ProfilePage() {
     first_name: string;
     last_name: string;
     date_of_birth: string;
+    medical_alerts: string;
+    media_opt_out: boolean;
     relationship: RiderParentRelationship;
     is_primary: boolean;
   }) {
@@ -170,6 +219,8 @@ export default function ProfilePage() {
         date_of_birth: values.date_of_birth || undefined,
         relationship: values.relationship,
         is_primary: values.is_primary,
+        medical_alerts: values.medical_alerts,
+        media_opt_out: values.media_opt_out,
       });
       toast.success("Youth connection updated");
       setEditingRiderId(null);
@@ -264,6 +315,30 @@ export default function ProfilePage() {
                     >
                       <Save className="mr-2 h-4 w-4" />
                       {isSavingEmail ? "Saving..." : "Save Email"}
+                    </Button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="medical-alerts">Medical Alerts</Label>
+                    <Textarea
+                      id="medical-alerts"
+                      value={medicalAlerts}
+                      onChange={(e) => setMedicalAlerts(e.target.value)}
+                      placeholder="Allergies, medications, emergency considerations..."
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={mediaOptOut} onCheckedChange={setMediaOptOut} />
+                      <Label>Media opt-out</Label>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveSafety}
+                      disabled={!canEditSafety || isSavingSafety}
+                    >
+                      <Save className="mr-2 h-4 w-4" />
+                      {isSavingSafety ? "Saving..." : "Save Safety"}
                     </Button>
                   </div>
                 </div>
@@ -384,6 +459,23 @@ export default function ProfilePage() {
                           <Label>Primary contact</Label>
                         </div>
                       </div>
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Medical Alerts</Label>
+                        <Textarea
+                          value={newMedicalAlerts}
+                          onChange={(e) => setNewMedicalAlerts(e.target.value)}
+                          placeholder="Allergies, medications, emergency considerations..."
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="flex items-center gap-2 pb-2">
+                          <Switch
+                            checked={newMediaOptOut}
+                            onCheckedChange={setNewMediaOptOut}
+                          />
+                          <Label>Media opt-out</Label>
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-3 flex justify-end">
                       <Button
@@ -419,12 +511,14 @@ function RiderConnectionCard({
   isEditing: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
-  onSave: (
+      onSave: (
     rider: MyLinkedRider,
     values: {
       first_name: string;
       last_name: string;
       date_of_birth: string;
+      medical_alerts: string;
+      media_opt_out: boolean;
       relationship: RiderParentRelationship;
       is_primary: boolean;
     },
@@ -435,6 +529,8 @@ function RiderConnectionCard({
   const [firstName, setFirstName] = useState(rider.first_name);
   const [lastName, setLastName] = useState(rider.last_name);
   const [dob, setDob] = useState(rider.date_of_birth ?? "");
+  const [medicalAlerts, setMedicalAlerts] = useState(rider.medical_alerts ?? "");
+  const [mediaOptOut, setMediaOptOut] = useState(rider.media_opt_out);
   const [relationship, setRelationship] =
     useState<RiderParentRelationship>(rider.relationship);
   const [isPrimary, setIsPrimary] = useState(rider.is_primary);
@@ -450,6 +546,7 @@ function RiderConnectionCard({
             {rider.group_name ?? "No group"} · {rider.relationship}
             {rider.is_primary ? " · Primary" : ""}
             {rider.date_of_birth ? ` · DOB ${rider.date_of_birth}` : ""}
+            {rider.media_opt_out ? " · Media opt-out" : ""}
           </p>
         </div>
         <div className="flex gap-1">
@@ -509,12 +606,26 @@ function RiderConnectionCard({
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label>Medical Alerts</Label>
+          <Textarea
+            value={medicalAlerts}
+            onChange={(e) => setMedicalAlerts(e.target.value)}
+            placeholder="Allergies, medications, emergency considerations..."
+          />
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Switch checked={isPrimary} onCheckedChange={setIsPrimary} />
-          <Label>Primary contact</Label>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch checked={isPrimary} onCheckedChange={setIsPrimary} />
+            <Label>Primary contact</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={mediaOptOut} onCheckedChange={setMediaOptOut} />
+            <Label>Media opt-out</Label>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onCancelEdit}>
@@ -528,6 +639,8 @@ function RiderConnectionCard({
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
                 date_of_birth: dob,
+                medical_alerts: medicalAlerts,
+                media_opt_out: mediaOptOut,
                 relationship,
                 is_primary: isPrimary,
               })

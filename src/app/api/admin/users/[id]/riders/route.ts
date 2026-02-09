@@ -16,6 +16,19 @@ const createRiderSchema = z.object({
   group_id: looseUuid,
   relationship: relationshipEnum.default("parent"),
   is_primary: z.boolean().default(true),
+  medical_alerts: z.string().max(2000).optional().or(z.literal("")),
+  media_opt_out: z.boolean().default(false),
+});
+
+const updateRiderSchema = z.object({
+  rider_id: looseUuid,
+  first_name: z.string().trim().min(1).max(100),
+  last_name: z.string().trim().min(1).max(100),
+  date_of_birth: z.string().optional().or(z.literal("")),
+  relationship: relationshipEnum,
+  is_primary: z.boolean(),
+  medical_alerts: z.string().max(2000).optional().or(z.literal("")),
+  media_opt_out: z.boolean(),
 });
 
 async function requireAdmin() {
@@ -66,7 +79,7 @@ export async function GET(
   const { data, error } = await auth.supabase
     .from("rider_parents")
     .select(
-      "rider_id, relationship, is_primary, riders:rider_id(id, first_name, last_name, date_of_birth, group_id, groups(id, name, color))",
+      "rider_id, relationship, is_primary, riders:rider_id(id, first_name, last_name, date_of_birth, group_id, medical_notes, media_opt_out, groups(id, name, color))",
     )
     .eq("parent_id", adultId)
     .order("is_primary", { ascending: false });
@@ -82,6 +95,8 @@ export async function GET(
     last_name: string;
     date_of_birth: string | null;
     group_id: string | null;
+    medical_notes: string | null;
+    media_opt_out: boolean;
     groups: GroupRow;
   };
 
@@ -97,6 +112,8 @@ export async function GET(
       group_id: rider.group_id,
       group_name: group?.name ?? null,
       group_color: group?.color ?? null,
+      medical_alerts: rider.medical_notes,
+      media_opt_out: rider.media_opt_out,
       relationship: row.relationship as z.infer<typeof relationshipEnum>,
       is_primary: row.is_primary,
     };
@@ -147,6 +164,8 @@ export async function POST(
       last_name: payload.last_name,
       date_of_birth: payload.date_of_birth || null,
       group_id: payload.group_id,
+      medical_notes: payload.medical_alerts?.trim() || null,
+      media_opt_out: payload.media_opt_out,
     })
     .select("id")
     .single();
@@ -232,6 +251,86 @@ export async function DELETE(
         .eq("rider_id", parsedRiderId.data)
         .eq("parent_id", links[0].parent_id);
     }
+  }
+
+  return NextResponse.json({ success: true });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: adultId } = await params;
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
+  let payload: z.infer<typeof updateRiderSchema>;
+  try {
+    payload = updateRiderSchema.parse(await request.json());
+  } catch {
+    return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
+  }
+
+  const { data: link } = await auth.supabase
+    .from("rider_parents")
+    .select("is_primary")
+    .eq("parent_id", adultId)
+    .eq("rider_id", payload.rider_id)
+    .maybeSingle();
+
+  if (!link) {
+    return NextResponse.json({ error: "Rider link not found" }, { status: 404 });
+  }
+
+  const { error: riderError } = await auth.supabase
+    .from("riders")
+    .update({
+      first_name: payload.first_name,
+      last_name: payload.last_name,
+      date_of_birth: payload.date_of_birth || null,
+      medical_notes: payload.medical_alerts?.trim() || null,
+      media_opt_out: payload.media_opt_out,
+    })
+    .eq("id", payload.rider_id);
+
+  if (riderError) {
+    return NextResponse.json({ error: riderError.message }, { status: 500 });
+  }
+
+  if (payload.is_primary) {
+    await auth.supabase
+      .from("rider_parents")
+      .update({ is_primary: false })
+      .eq("rider_id", payload.rider_id)
+      .neq("parent_id", adultId);
+  } else if (link.is_primary) {
+    const { data: otherPrimary } = await auth.supabase
+      .from("rider_parents")
+      .select("parent_id")
+      .eq("rider_id", payload.rider_id)
+      .neq("parent_id", adultId)
+      .eq("is_primary", true)
+      .maybeSingle();
+
+    if (!otherPrimary) {
+      return NextResponse.json(
+        { error: "Cannot unset the only primary contact for this rider" },
+        { status: 400 },
+      );
+    }
+  }
+
+  const { error: linkError } = await auth.supabase
+    .from("rider_parents")
+    .update({
+      relationship: payload.relationship,
+      is_primary: payload.is_primary,
+    })
+    .eq("parent_id", adultId)
+    .eq("rider_id", payload.rider_id);
+
+  if (linkError) {
+    return NextResponse.json({ error: linkError.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

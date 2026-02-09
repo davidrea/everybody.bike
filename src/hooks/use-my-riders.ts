@@ -15,6 +15,8 @@ export interface MyLinkedRider {
   group_id: string | null;
   group_name: string | null;
   group_color: string | null;
+  medical_alerts: string | null;
+  media_opt_out: boolean;
   relationship: RiderParentRelationship;
   is_primary: boolean;
 }
@@ -40,6 +42,8 @@ export function useCreateMyRider() {
       last_name: string;
       date_of_birth?: string;
       group_id?: string;
+      medical_alerts?: string;
+      media_opt_out: boolean;
       relationship: RiderParentRelationship;
       is_primary: boolean;
     }) => {
@@ -70,6 +74,8 @@ export function useUpdateMyRider() {
       first_name: string;
       last_name: string;
       date_of_birth?: string;
+      medical_alerts?: string;
+      media_opt_out: boolean;
       relationship: RiderParentRelationship;
       is_primary: boolean;
     }) => {

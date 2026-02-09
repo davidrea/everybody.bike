@@ -17,6 +17,8 @@ const createRiderSchema = z.object({
   group_id: looseUuid.optional(),
   relationship: relationshipEnum.default("parent"),
   is_primary: z.boolean().default(true),
+  medical_alerts: z.string().max(2000).optional().or(z.literal("")),
+  media_opt_out: z.boolean().default(false),
 });
 
 const updateRiderSchema = z.object({
@@ -26,6 +28,8 @@ const updateRiderSchema = z.object({
   date_of_birth: z.string().optional().or(z.literal("")),
   relationship: relationshipEnum,
   is_primary: z.boolean(),
+  medical_alerts: z.string().max(2000).optional().or(z.literal("")),
+  media_opt_out: z.boolean(),
 });
 
 export async function GET() {
@@ -41,7 +45,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("rider_parents")
     .select(
-      "rider_id, relationship, is_primary, riders:rider_id(id, first_name, last_name, date_of_birth, group_id, groups(id, name, color))",
+      "rider_id, relationship, is_primary, riders:rider_id(id, first_name, last_name, date_of_birth, group_id, medical_notes, media_opt_out, groups(id, name, color))",
     )
     .eq("parent_id", user.id);
 
@@ -56,6 +60,8 @@ export async function GET() {
     last_name: string;
     date_of_birth: string | null;
     group_id: string | null;
+    medical_notes: string | null;
+    media_opt_out: boolean;
     groups: GroupRow;
   };
 
@@ -72,6 +78,8 @@ export async function GET() {
         group_id: rider.group_id,
         group_name: group?.name ?? null,
         group_color: group?.color ?? null,
+        medical_alerts: rider.medical_notes,
+        media_opt_out: rider.media_opt_out,
         relationship: rp.relationship,
         is_primary: rp.is_primary,
       };
@@ -131,6 +139,8 @@ export async function POST(request: Request) {
       last_name: payload.last_name,
       date_of_birth: payload.date_of_birth || null,
       group_id: payload.group_id ?? null,
+      medical_notes: payload.medical_alerts?.trim() || null,
+      media_opt_out: payload.media_opt_out,
     })
     .select("id")
     .single();
@@ -191,6 +201,8 @@ export async function PATCH(request: Request) {
       first_name: payload.first_name,
       last_name: payload.last_name,
       date_of_birth: payload.date_of_birth || null,
+      medical_notes: payload.medical_alerts?.trim() || null,
+      media_opt_out: payload.media_opt_out,
     })
     .eq("id", payload.rider_id);
 

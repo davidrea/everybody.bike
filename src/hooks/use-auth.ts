@@ -12,6 +12,8 @@ interface Profile {
   rider_group_id: string | null;
   avatar_url: string | null;
   invite_status: string;
+  medical_alerts: string | null;
+  media_opt_out: boolean;
 }
 
 interface AuthData {

@@ -11,6 +11,7 @@ import {
   useDeleteUser,
   useUpdateUserName,
   useUpdateUserEmail,
+  useUpdateUserSafety,
 } from "@/hooks/use-users";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export function UserList() {
   const updateRoles = useUpdateUserRoles();
   const updateName = useUpdateUserName();
   const updateEmail = useUpdateUserEmail();
+  const updateSafety = useUpdateUserSafety();
   const deleteUser = useDeleteUser();
 
   const [showInvite, setShowInvite] = useState(false);
@@ -130,6 +132,24 @@ export function UserList() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update email",
+      );
+      throw err;
+    }
+  }
+
+  async function handleUpdateSafety(medicalAlerts: string, mediaOptOut: boolean) {
+    if (!editingUser) return;
+    try {
+      await updateSafety.mutateAsync({
+        userId: editingUser.id,
+        medicalAlerts,
+        mediaOptOut,
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to update safety preferences",
       );
       throw err;
     }
@@ -275,6 +295,8 @@ export function UserList() {
           isSavingName={updateName.isPending}
           onSubmitEmail={handleUpdateEmail}
           isSavingEmail={updateEmail.isPending}
+          onSubmitSafety={handleUpdateSafety}
+          isSavingSafety={updateSafety.isPending}
           onSubmitRoles={handleUpdateRoles}
           isSavingRoles={updateRoles.isPending}
         />

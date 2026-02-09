@@ -5,9 +5,18 @@ import { createClient } from "@/lib/supabase/server";
 const updateProfileSchema = z.object({
   full_name: z.string().trim().min(1).max(200).optional(),
   email: z.string().trim().email().optional(),
-}).refine((data) => !!data.full_name || !!data.email, {
+  medical_alerts: z.string().max(2000).optional().or(z.literal("")),
+  media_opt_out: z.boolean().optional(),
+}).refine(
+  (data) =>
+    data.full_name !== undefined ||
+    data.email !== undefined ||
+    data.medical_alerts !== undefined ||
+    data.media_opt_out !== undefined,
+  {
   message: "At least one field is required",
-});
+  },
+);
 
 export async function PATCH(request: Request) {
   const supabase = await createClient();
@@ -35,7 +44,12 @@ export async function PATCH(request: Request) {
     .eq("id", user.id)
     .single();
 
-  const updates: { full_name?: string; email?: string } = {};
+  const updates: {
+    full_name?: string;
+    email?: string;
+    medical_alerts?: string | null;
+    media_opt_out?: boolean;
+  } = {};
   if (parsed.data.full_name) {
     updates.full_name = parsed.data.full_name;
   }
@@ -67,7 +81,21 @@ export async function PATCH(request: Request) {
     }
   }
 
-  if (updates.full_name || updates.email) {
+  if (parsed.data.medical_alerts !== undefined) {
+    const trimmed = parsed.data.medical_alerts.trim();
+    updates.medical_alerts = trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (parsed.data.media_opt_out !== undefined) {
+    updates.media_opt_out = parsed.data.media_opt_out;
+  }
+
+  if (
+    updates.full_name !== undefined ||
+    updates.email !== undefined ||
+    updates.medical_alerts !== undefined ||
+    updates.media_opt_out !== undefined
+  ) {
     const { error: profileError } = await supabase
       .from("profiles")
       .update(updates)

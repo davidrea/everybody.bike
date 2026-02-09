@@ -16,6 +16,8 @@ export type Database = {
           rider_group_id: string | null;
           avatar_url: string | null;
           invite_status: string;
+          medical_alerts: string | null;
+          media_opt_out: boolean;
           invited_at: string | null;
           invited_by: string | null;
           created_at: string;
@@ -29,6 +31,8 @@ export type Database = {
           rider_group_id?: string | null;
           avatar_url?: string | null;
           invite_status?: string;
+          medical_alerts?: string | null;
+          media_opt_out?: boolean;
           invited_at?: string | null;
           invited_by?: string | null;
           created_at?: string;
@@ -42,6 +46,8 @@ export type Database = {
           rider_group_id?: string | null;
           avatar_url?: string | null;
           invite_status?: string;
+          medical_alerts?: string | null;
+          media_opt_out?: boolean;
           invited_at?: string | null;
           invited_by?: string | null;
           created_at?: string;
@@ -57,6 +63,7 @@ export type Database = {
           date_of_birth: string | null;
           emergency_contact: string | null;
           medical_notes: string | null;
+          media_opt_out: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -68,6 +75,7 @@ export type Database = {
           date_of_birth?: string | null;
           emergency_contact?: string | null;
           medical_notes?: string | null;
+          media_opt_out?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -79,6 +87,7 @@ export type Database = {
           date_of_birth?: string | null;
           emergency_contact?: string | null;
           medical_notes?: string | null;
+          media_opt_out?: boolean;
           created_at?: string;
           updated_at?: string;
         };

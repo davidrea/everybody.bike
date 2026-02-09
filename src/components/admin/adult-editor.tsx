@@ -1,14 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ROLES, type Profile } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  type AdminUserLinkedRider,
   useAdminUserRiders,
   useCreateAdminUserRider,
   useUnlinkAdminUserRider,
+  useUpdateAdminUserRider,
   type RiderParentRelationship,
 } from "@/hooks/use-admin-user-riders";
 import { useGroups } from "@/hooks/use-groups";
@@ -22,6 +24,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -58,6 +61,8 @@ interface AdultEditorProps {
   isSavingName: boolean;
   onSubmitEmail: (email: string) => Promise<void>;
   isSavingEmail: boolean;
+  onSubmitSafety: (medicalAlerts: string, mediaOptOut: boolean) => Promise<void>;
+  isSavingSafety: boolean;
   onSubmitRoles: (roles: string[]) => Promise<void>;
   isSavingRoles: boolean;
 }
@@ -70,6 +75,8 @@ export function AdultEditor({
   isSavingName,
   onSubmitEmail,
   isSavingEmail,
+  onSubmitSafety,
+  isSavingSafety,
   onSubmitRoles,
   isSavingRoles,
 }: AdultEditorProps) {
@@ -78,6 +85,8 @@ export function AdultEditor({
 
   const [fullName, setFullName] = useState(user.full_name);
   const [email, setEmail] = useState(user.email);
+  const [medicalAlerts, setMedicalAlerts] = useState(user.medical_alerts ?? "");
+  const [mediaOptOut, setMediaOptOut] = useState(user.media_opt_out ?? false);
   const [selectedRoles, setSelectedRoles] = useState<string[]>(user.roles);
 
   const [firstName, setFirstName] = useState("");
@@ -87,12 +96,15 @@ export function AdultEditor({
   const [relationship, setRelationship] =
     useState<RiderParentRelationship>("parent");
   const [isPrimary, setIsPrimary] = useState(true);
+  const [childMedicalAlerts, setChildMedicalAlerts] = useState("");
+  const [childMediaOptOut, setChildMediaOptOut] = useState(false);
 
   const { data: groups } = useGroups();
   const { data: linkedRiders, isLoading: linkedRidersLoading } = useAdminUserRiders(
     open ? user.id : undefined,
   );
   const createRider = useCreateAdminUserRider();
+  const updateRider = useUpdateAdminUserRider();
   const unlinkRider = useUnlinkAdminUserRider();
 
   const canSaveName =
@@ -100,6 +112,9 @@ export function AdultEditor({
   const canSaveEmail =
     email.trim().length > 0 &&
     email.trim().toLowerCase() !== user.email.toLowerCase();
+  const canSaveSafety =
+    medicalAlerts.trim() !== (user.medical_alerts ?? "") ||
+    mediaOptOut !== (user.media_opt_out ?? false);
 
   const canSaveRoles = useMemo(
     () =>
@@ -142,6 +157,17 @@ export function AdultEditor({
     }
   }
 
+  async function handleSaveSafety() {
+    try {
+      await onSubmitSafety(medicalAlerts, mediaOptOut);
+      toast.success("Safety preferences updated");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update safety preferences",
+      );
+    }
+  }
+
   async function handleCreateChild() {
     if (!firstName.trim() || !lastName.trim() || !groupId) {
       toast.error("First name, last name, and group are required");
@@ -158,6 +184,8 @@ export function AdultEditor({
           group_id: groupId,
           relationship,
           is_primary: isPrimary,
+          medical_alerts: childMedicalAlerts,
+          media_opt_out: childMediaOptOut,
         },
       });
       toast.success("Child added and linked");
@@ -167,6 +195,8 @@ export function AdultEditor({
       setGroupId("");
       setRelationship("parent");
       setIsPrimary(true);
+      setChildMedicalAlerts("");
+      setChildMediaOptOut(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add child");
     }
@@ -238,6 +268,29 @@ export function AdultEditor({
                 {isSavingEmail ? "Saving..." : "Save Email"}
               </Button>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`adult-medical-alerts-${user.id}`}>Medical Alerts</Label>
+              <Textarea
+                id={`adult-medical-alerts-${user.id}`}
+                value={medicalAlerts}
+                onChange={(e) => setMedicalAlerts(e.target.value)}
+                placeholder="Allergies, medications, emergency considerations..."
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Switch checked={mediaOptOut} onCheckedChange={setMediaOptOut} />
+                <Label>Media opt-out</Label>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveSafety}
+                disabled={!canSaveSafety || isSavingSafety}
+              >
+                {isSavingSafety ? "Saving..." : "Save Safety"}
+              </Button>
+            </div>
           </section>
 
           <section className="space-y-3">
@@ -288,31 +341,19 @@ export function AdultEditor({
             ) : linkedRiders && linkedRiders.length > 0 ? (
               <div className="space-y-2">
                 {linkedRiders.map((rider) => (
-                  <div
-                    key={rider.rider_id}
-                    className="flex items-center justify-between rounded-md border p-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {rider.first_name} {rider.last_name}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {rider.group_name ?? "No group"} · {rider.relationship}
-                        {rider.is_primary ? " · Primary" : ""}
-                        {rider.date_of_birth ? ` · DOB ${rider.date_of_birth}` : ""}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => handleUnlinkRider(rider.rider_id)}
-                      disabled={unlinkRider.isPending}
-                      aria-label={`Unlink ${rider.first_name} ${rider.last_name}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  <AdminRiderSafetyCard
+                    key={`${rider.rider_id}-${rider.medical_alerts ?? ""}-${rider.media_opt_out}`}
+                    rider={rider}
+                    userId={user.id}
+                    onUnlink={handleUnlinkRider}
+                    onSave={async (values) => {
+                      await updateRider.mutateAsync({
+                        userId: user.id,
+                        values,
+                      });
+                    }}
+                    isBusy={unlinkRider.isPending || updateRider.isPending}
+                  />
                 ))}
               </div>
             ) : (
@@ -393,6 +434,23 @@ export function AdultEditor({
                   <Label>Primary contact</Label>
                 </div>
               </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Medical Alerts</Label>
+                <Textarea
+                  value={childMedicalAlerts}
+                  onChange={(e) => setChildMedicalAlerts(e.target.value)}
+                  placeholder="Allergies, medications, emergency considerations..."
+                />
+              </div>
+              <div className="flex items-end pb-2">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={childMediaOptOut}
+                    onCheckedChange={setChildMediaOptOut}
+                  />
+                  <Label>Media opt-out</Label>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end">
               <Button
@@ -407,5 +465,99 @@ export function AdultEditor({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AdminRiderSafetyCard({
+  rider,
+  userId,
+  onSave,
+  onUnlink,
+  isBusy,
+}: {
+  rider: AdminUserLinkedRider;
+  userId: string;
+  onSave: (values: {
+    rider_id: string;
+    first_name: string;
+    last_name: string;
+    date_of_birth?: string;
+    medical_alerts?: string;
+    media_opt_out: boolean;
+    relationship: RiderParentRelationship;
+    is_primary: boolean;
+  }) => Promise<void>;
+  onUnlink: (riderId: string) => Promise<void>;
+  isBusy: boolean;
+}) {
+  const [medicalAlerts, setMedicalAlerts] = useState(rider.medical_alerts ?? "");
+  const [mediaOptOut, setMediaOptOut] = useState(rider.media_opt_out);
+
+  const canSave =
+    medicalAlerts !== (rider.medical_alerts ?? "") ||
+    mediaOptOut !== rider.media_opt_out;
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">
+            {rider.first_name} {rider.last_name}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {rider.group_name ?? "No group"} · {rider.relationship}
+            {rider.is_primary ? " · Primary" : ""}
+            {rider.date_of_birth ? ` · DOB ${rider.date_of_birth}` : ""}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => onUnlink(rider.rider_id)}
+          disabled={isBusy}
+          aria-label={`Unlink ${rider.first_name} ${rider.last_name}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`admin-rider-medical-${userId}-${rider.rider_id}`}>
+          Medical Alerts
+        </Label>
+        <Textarea
+          id={`admin-rider-medical-${userId}-${rider.rider_id}`}
+          value={medicalAlerts}
+          onChange={(e) => setMedicalAlerts(e.target.value)}
+          placeholder="Allergies, medications, emergency considerations..."
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Switch checked={mediaOptOut} onCheckedChange={setMediaOptOut} />
+          <Label>Media opt-out</Label>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() =>
+            onSave({
+              rider_id: rider.rider_id,
+              first_name: rider.first_name,
+              last_name: rider.last_name,
+              date_of_birth: rider.date_of_birth ?? undefined,
+              medical_alerts: medicalAlerts,
+              media_opt_out: mediaOptOut,
+              relationship: rider.relationship,
+              is_primary: rider.is_primary,
+            }).then(() => toast.success("Child safety updated"))
+          }
+          disabled={!canSave || isBusy}
+        >
+          <Save className="mr-2 h-4 w-4" />
+          Save
+        </Button>
+      </div>
+    </div>
   );
 }
