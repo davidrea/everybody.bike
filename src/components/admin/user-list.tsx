@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, RotateCw, Settings } from "lucide-react";
+import { UserPlus, RotateCw, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useUsers, useInviteUser, useResendInvite, useUpdateUserRoles } from "@/hooks/use-users";
+import { useUsers, useInviteUser, useResendInvite, useUpdateUserRoles, useDeleteUser } from "@/hooks/use-users";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,16 @@ import {
 } from "@/components/ui/table";
 import { InviteForm } from "./invite-form";
 import { AdultEditor } from "./adult-editor";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { InviteFormValues } from "@/lib/validators";
 import type { Profile } from "@/types";
 
@@ -37,13 +48,16 @@ const roleLabels: Record<string, string> = {
 };
 
 export function UserList() {
+  const { user: currentUser, hasRole } = useAuth();
   const { data: users, isLoading } = useUsers();
   const inviteUser = useInviteUser();
   const resendInvite = useResendInvite();
   const updateRoles = useUpdateUserRoles();
+  const deleteUser = useDeleteUser();
 
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
 
   async function handleInvite(values: InviteFormValues) {
     try {
@@ -78,6 +92,17 @@ export function UserList() {
         err instanceof Error ? err.message : "Failed to update roles",
       );
       throw err;
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!deleteTarget) return;
+    try {
+      await deleteUser.mutateAsync(deleteTarget.id);
+      toast.success("User deleted");
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete user");
     }
   }
 
@@ -154,6 +179,16 @@ export function UserList() {
                     >
                       <Settings className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget(user)}
+                      title="Delete user"
+                      aria-label={`Delete ${user.full_name}`}
+                      disabled={user.id === currentUser?.id}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                     {user.invite_status === "pending" && (
                       <Button
                         variant="ghost"
@@ -200,6 +235,39 @@ export function UserList() {
           isSavingRoles={updateRoles.isPending}
         />
       )}
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `Delete ${deleteTarget.full_name}? This removes their account and cannot be undone.`
+                : "Delete this user?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteUser.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDeleteUser}
+              disabled={
+                deleteUser.isPending ||
+                (deleteTarget?.roles?.includes("admin") && !hasRole("super_admin")) ||
+                (deleteTarget?.roles?.includes("super_admin") &&
+                  !hasRole("super_admin"))
+              }
+            >
+              {deleteUser.isPending ? "Deleting..." : "Delete User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

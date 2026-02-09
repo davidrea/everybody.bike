@@ -90,3 +90,23 @@ export function useUpdateUserRoles() {
     },
   });
 }
+
+export function useDeleteUser() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to delete user");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["admin-riders"] });
+      qc.invalidateQueries({ queryKey: ["admin-user-riders"] });
+    },
+  });
+}
