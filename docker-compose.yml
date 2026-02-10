@@ -52,8 +52,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      # Server-side Supabase URL (internal Docker network — avoids round-trip through internet)
-      SUPABASE_URL: http://kong:8000
+      # Server-side Supabase URL (must match NEXT_PUBLIC_SUPABASE_URL for auth cookies)
+      SUPABASE_URL: ${API_EXTERNAL_URL}
       # These NEXT_PUBLIC_ vars are baked at build time, but we set them here for
       # reference and for any runtime usage in API routes.
       NEXT_PUBLIC_SUPABASE_URL: ${API_EXTERNAL_URL}
