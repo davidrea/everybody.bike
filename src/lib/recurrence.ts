@@ -13,6 +13,39 @@ const freqMap = {
   monthly: RRule.MONTHLY,
 };
 
+const weekdayAliases: Record<string, string> = {
+  MO: "MO",
+  TU: "TU",
+  WE: "WE",
+  TH: "TH",
+  FR: "FR",
+  SA: "SA",
+  SU: "SU",
+  MON: "MO",
+  TUE: "TU",
+  WED: "WE",
+  THU: "TH",
+  FRI: "FR",
+  SAT: "SA",
+  SUN: "SU",
+};
+
+function normalizeRRule(ruleStr: string): string {
+  return ruleStr
+    .split(";")
+    .map((part) => {
+      if (!part.toUpperCase().startsWith("BYDAY=")) return part;
+      const [key, value] = part.split("=");
+      if (!value) return part;
+      const normalized = value
+        .split(",")
+        .map((day) => weekdayAliases[day.trim().toUpperCase()] ?? day.trim())
+        .join(",");
+      return `${key}=${normalized}`;
+    })
+    .join(";");
+}
+
 export function buildRRule(options: RecurrenceOptions): string {
   const rruleOptions: Partial<RRuleOptions> = {
     freq: freqMap[options.frequency],
@@ -37,7 +70,7 @@ export function buildRRule(options: RecurrenceOptions): string {
 }
 
 export function parseRRule(ruleStr: string): RecurrenceOptions {
-  const rule = RRule.fromString(`RRULE:${ruleStr}`);
+  const rule = RRule.fromString(`RRULE:${normalizeRRule(ruleStr)}`);
   const opts = rule.origOptions;
 
   let frequency: RecurrenceOptions["frequency"] = "weekly";
@@ -65,7 +98,7 @@ export function generateOccurrences(
   startDate: Date,
   rangeEnd?: Date,
 ): Date[] {
-  const rule = RRule.fromString(`RRULE:${ruleStr}`);
+  const rule = RRule.fromString(`RRULE:${normalizeRRule(ruleStr)}`);
 
   // Default to 6 months from start if no range end given
   const end =
@@ -82,7 +115,7 @@ export function generateOccurrences(
 
 export function humanizeRRule(ruleStr: string): string {
   try {
-    const rule = RRule.fromString(`RRULE:${ruleStr}`);
+    const rule = RRule.fromString(`RRULE:${normalizeRRule(ruleStr)}`);
     return rule.toText();
   } catch {
     return ruleStr;
