@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, RotateCw, Settings, Trash2 } from "lucide-react";
+import { UserPlus, RotateCw, Settings, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   useUsers,
   useInviteUser,
   useResendInvite,
+  useInviteLink,
   useUpdateUserRoles,
   useDeleteUser,
   useUpdateUserName,
@@ -62,6 +63,7 @@ export function UserList() {
   const { data: users, isLoading } = useUsers();
   const inviteUser = useInviteUser();
   const resendInvite = useResendInvite();
+  const inviteLink = useInviteLink();
   const updateRoles = useUpdateUserRoles();
   const updateName = useUpdateUserName();
   const updateEmail = useUpdateUserEmail();
@@ -89,6 +91,18 @@ export function UserList() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to resend invite",
+      );
+    }
+  }
+
+  async function handleCopyInviteLink(userId: string) {
+    try {
+      const { link } = await inviteLink.mutateAsync(userId);
+      await navigator.clipboard.writeText(link);
+      toast.success("Invite link copied");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to copy invite link",
       );
     }
   }
@@ -225,6 +239,30 @@ export function UserList() {
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
+                  {user.invite_status === "pending" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleResend(user.id)}
+                      disabled={resendInvite.isPending}
+                      title="Resend invite"
+                      aria-label={`Resend invite for ${user.full_name}`}
+                    >
+                      <RotateCw className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {user.invite_status === "pending" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyInviteLink(user.id)}
+                      disabled={inviteLink.isPending}
+                      title="Copy invite link"
+                      aria-label={`Copy invite link for ${user.full_name}`}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -346,6 +384,18 @@ export function UserList() {
                         title="Resend invite"
                       >
                         <RotateCw className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {user.invite_status === "pending" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopyInviteLink(user.id)}
+                        disabled={inviteLink.isPending}
+                        title="Copy invite link"
+                        aria-label={`Copy invite link for ${user.full_name}`}
+                      >
+                        <Copy className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

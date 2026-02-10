@@ -1,0 +1,2 @@
+# Dispatch pending scheduled notifications every 2 minutes
+*/2 * * * * wget -qO- --header="Authorization: Bearer $NOTIFICATION_DISPATCH_SECRET" --post-data="" http://app:3000/api/admin/notifications/dispatch > /proc/1/fd/1 2>&1

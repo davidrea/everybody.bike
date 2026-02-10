@@ -229,8 +229,8 @@ otp_expiry = 43200
 enabled = true
 host = "smtp.mailgun.org"
 port = 587
-user = "env(MAILGUN_SMTP_USER)"
-pass = "env(MAILGUN_SMTP_PASS)"
+user = "env(SMTP_USER)"
+pass = "env(SMTP_PASS)"
 admin_email = "admin@everybody.bike"
 sender_name = "Everybody.Bike"
 

@@ -188,23 +188,67 @@ Adults log in and interact with the app directly. Each adult can hold **any comb
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
 | Containerization | **Docker + Docker Compose** | App container + Supabase stack in parallel |
-| App Container | **Node.js 20 Alpine** | Runs Next.js in production mode |
-| Supabase Local | **supabase/docker** | Official self-hosted Supabase containers (Postgres, Auth, Realtime, REST, Storage) |
-| Reverse Proxy | **Caddy** or **Traefik** (optional) | TLS termination, routing |
+| App Container | **Node.js 22 Alpine** | Runs Next.js in production mode (standalone output) |
+| Supabase Self-Hosted | **supabase/docker** | Official self-hosted Supabase containers (Postgres, Auth, Realtime, REST, Storage, Kong, Analytics) |
+| TLS / Proxy | **Cloudflare Tunnel** | HTTPS termination and routing (user-managed, added as Docker service) |
 
 ---
 
 ## Deployment Architecture
 
-**Current state**: Local dev uses Supabase CLI (`supabase start`). Production deployment uses a standalone Dockerfile for the Next.js app, connecting to a hosted or self-hosted Supabase instance.
+**Local dev**: Uses Supabase CLI (`supabase start`) for the database stack. Next.js runs via `npm run dev` outside Docker for hot reload.
 
-**Planned**: Docker Compose with self-hosted Supabase containers (not yet implemented).
+**Production**: Docker Compose with self-hosted Supabase + Next.js app + cron service. All services on a shared Docker network. Cloudflare Tunnel handles HTTPS and public routing.
 
-Environment variables are managed via `.env` files (not committed; `.env.example` provided).
+### Docker Compose Services
+
+| Service | Container | Purpose |
+|---------|-----------|---------|
+| **app** | Next.js (built from `Dockerfile`) | The everybody.bike web app |
+| **db** | supabase/postgres:15 | PostgreSQL database |
+| **kong** | kong:2.8.1 | API gateway (routes to auth, rest, realtime, storage) |
+| **auth** | supabase/gotrue | Magic link + passkey authentication |
+| **rest** | postgrest/postgrest | REST API for Supabase client SDK |
+| **realtime** | supabase/realtime | Realtime subscriptions (WebSocket) |
+| **storage** | supabase/storage-api | File/object storage |
+| **imgproxy** | darthsim/imgproxy | Image transformation |
+| **studio** | supabase/studio | Database admin dashboard |
+| **meta** | supabase/postgres-meta | DB metadata API (for Studio) |
+| **analytics** | supabase/logflare | Log analytics |
+| **vector** | timberio/vector | Log collection/forwarding |
+| **supavisor** | supabase/supavisor | Connection pooler |
+| **cron** | alpine + crond | Notification dispatch (every 2 min) |
+| **migrate** | postgres (profile) | On-demand app migration runner |
+
+### Internal Routing
+
+- Server-side Supabase clients (`server.ts`, `admin.ts`) prefer `SUPABASE_URL` env var (`http://kong:8000`) for internal Docker networking, falling back to `NEXT_PUBLIC_SUPABASE_URL` (the public URL).
+- Browser-side uses `NEXT_PUBLIC_SUPABASE_URL` (public URL, baked at build time).
+- Kong routes: `/auth/v1/*` → auth, `/rest/v1/*` → rest, `/realtime/v1/*` → realtime, `/storage/v1/*` → storage.
+
+### Exposed Ports (for Cloudflare Tunnel)
+
+- `app:3000` — The web app (map to `everybody.bike`)
+- `kong:8000` — Supabase API gateway (map to `api.everybody.bike`)
+- Studio accessible via Kong's dashboard route (basic auth protected)
+
+Environment variables are managed via `.env` files (not committed; `.env.production.example` provided).
 
 ---
 
-## Recent Updates (2026-02-09)
+## Recent Updates (2026-02-10)
+
+- **Docker Compose production deployment**: Full self-hosted Supabase stack (14 services) + Next.js app + cron for notifications.
+- Added `SUPABASE_URL` server-only env var for internal Docker routing (`server.ts`, `admin.ts` prefer it over `NEXT_PUBLIC_SUPABASE_URL`).
+- `scripts/generate-keys.sh` generates all Supabase infrastructure secrets.
+- `scripts/crontab` dispatches notifications every 2 min via `wget`.
+- `volumes/` directory contains all Supabase Docker init scripts (from official repo).
+- App migrations auto-mount into DB container's init directory on first start.
+- On-demand migration runner: `docker compose run --rm migrate`.
+- GoTrue configured with 90-day sessions, 12-hour OTP expiry, refresh token rotation, custom email templates.
+- `.env.production.example` documents every required secret with generation instructions.
+
+### Previous (2026-02-09)
 
 - Added configurable base URL helper (`src/lib/url.ts`) and wired invite/resend redirect generation to prefer env + forwarded headers.
 - Added OTP code entry on login for email OTP verification.
@@ -413,8 +457,10 @@ The UI should evoke the **rugged, adventurous spirit of mountain biking**:
 everybody.bike/
 ├── CLAUDE.md                    # This file
 ├── README.md
-├── Dockerfile                   # Production multi-stage build
-├── .env.example
+├── docker-compose.yml           # Production: all services (Supabase + app + cron)
+├── Dockerfile                   # Production multi-stage build (Next.js app)
+├── .env.example                 # Local dev env template
+├── .env.production.example      # Production env template (all secrets documented)
 ├── .gitignore
 ├── next.config.ts               # Next.js config (security headers, standalone output)
 ├── tsconfig.json
@@ -506,8 +552,17 @@ everybody.bike/
 ├── supabase/
 │   ├── config.toml              # Local dev config (auth, SMTP, rate limits)
 │   ├── templates/               # Custom email templates (invite, magic_link)
-│   ├── migrations/              # 5 migration files (initial + incremental)
+│   ├── migrations/              # 7 migration files (initial + incremental)
 │   └── seed.sql                 # Dev seed data
+├── volumes/                     # Supabase Docker init scripts (from official repo)
+│   ├── api/kong.yml             # Kong API gateway routing config
+│   ├── db/                      # DB init: roles, jwt, realtime, webhooks, etc.
+│   ├── logs/vector.yml          # Log collection pipeline config
+│   ├── pooler/pooler.exs        # Connection pooler init
+│   └── storage/                 # File storage data (gitignored)
+├── scripts/
+│   ├── generate-keys.sh         # Generate all Supabase infrastructure secrets
+│   └── crontab                  # Cron schedule for notification dispatch
 └── vitest.config.ts
 ```
 
@@ -616,7 +671,13 @@ npm run format
 - [x] Dark mode.
 - [x] Security headers (CSP, X-Frame-Options, etc.).
 - [x] Error boundaries (root error.tsx).
-- [ ] Docker Compose with self-hosted Supabase containers.
+- [x] Docker Compose with self-hosted Supabase containers.
+- [x] Production `.env.production.example` with all secrets documented.
+- [x] Secret generation script (`scripts/generate-keys.sh`).
+- [x] Cron service for notification dispatch.
+- [x] Internal Docker routing (`SUPABASE_URL` for server-side).
+- [x] App migrations auto-applied on first DB init.
+- [ ] Cloudflare Tunnel service added to Docker Compose.
 - [ ] Comprehensive test suite (unit, integration, e2e).
 - [ ] Offline support and sync (queued RSVPs).
 - [ ] Performance optimization (Lighthouse audit).

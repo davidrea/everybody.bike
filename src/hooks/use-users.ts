@@ -63,6 +63,23 @@ export function useResendInvite() {
   });
 }
 
+export function useInviteLink() {
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch("/api/admin/invite/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to generate invite link");
+      }
+      return res.json() as Promise<{ link: string }>;
+    },
+  });
+}
+
 export function useUpdateUserRoles() {
   const qc = useQueryClient();
 
