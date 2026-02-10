@@ -131,41 +131,43 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("roles")
+      .eq("id", user.id)
+      .single();
 
-  const isAdmin =
-    profile?.roles?.includes("admin") ||
-    profile?.roles?.includes("super_admin");
+    const isAdmin =
+      profile?.roles?.includes("admin") ||
+      profile?.roles?.includes("super_admin");
 
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-  const body = await request.json();
-  const parsed = eventSchema.safeParse(body);
+    const body = await request.json();
+    const parsed = eventSchema.safeParse(body);
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 400 },
-    );
-  }
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
 
-  const { group_ids, is_recurring, recurrence_rule, ...eventData } =
-    parsed.data;
+    const { group_ids, is_recurring, recurrence_rule, ...eventData } =
+      parsed.data;
+    const groupIds = Array.isArray(group_ids) ? group_ids : [];
 
   if (is_recurring && recurrence_rule) {
     // Create recurring event series
@@ -209,11 +211,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (group_ids.length > 0) {
+    if (groupIds.length > 0) {
       // Create event_groups for each event
-      const eventGroupRows = created.flatMap((evt) =>
-        group_ids.map((gid) => ({ event_id: evt.id, group_id: gid })),
-      );
+    const eventGroupRows = created.flatMap((evt) =>
+      groupIds.map((gid) => ({ event_id: evt.id, group_id: gid })),
+    );
 
       const { error: egError } = await supabase
         .from("event_groups")
@@ -276,11 +278,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (group_ids.length > 0) {
+  if (groupIds.length > 0) {
     // Create event_groups
     const { error: egError } = await supabase
       .from("event_groups")
-      .insert(group_ids.map((gid) => ({ event_id: event.id, group_id: gid })));
+      .insert(groupIds.map((gid) => ({ event_id: event.id, group_id: gid })));
 
     if (egError) {
       return NextResponse.json({ error: egError.message }, { status: 500 });
@@ -307,5 +309,12 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json(event, { status: 201 });
+    return NextResponse.json(event, { status: 201 });
+  } catch (err) {
+    console.error("[events:POST] Unexpected error:", err);
+    return NextResponse.json(
+      { error: "Failed to create event" },
+      { status: 500 },
+    );
+  }
 }
