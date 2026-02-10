@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 
 export async function GET() {
   try {
-    const headerList = headers();
+    const headerList = await headers();
     const rpID = getRpIDFromHeaders(headerList);
 
     const options = await generateAuthenticationOptions({

@@ -280,7 +280,7 @@ export async function GET(
         "roll_model_id, profiles:roll_model_id(id, full_name, avatar_url, medical_alerts, media_opt_out)",
       )
       .in("group_id", groupIds);
-    rmGroupRows = (data as typeof rmGroupRows) ?? [];
+    rmGroupRows = (data as unknown as typeof rmGroupRows) ?? [];
   }
 
   // Deduplicate roll models (may coach multiple event groups)

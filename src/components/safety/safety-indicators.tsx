@@ -24,18 +24,20 @@ export function SafetyIndicators({
   return (
     <span className={cn("inline-flex items-center gap-1", className)}>
       {hasMedicalAlerts ? (
-        <Cross
-          className={cn("h-3.5 w-3.5 text-destructive", iconClassName)}
-          aria-label="Medical alert"
-          title="Medical alert"
-        />
+        <span title="Medical alert">
+          <Cross
+            className={cn("h-3.5 w-3.5 text-destructive", iconClassName)}
+            aria-label="Medical alert"
+          />
+        </span>
       ) : null}
       {hasMediaOptOut ? (
-        <CircleOff
-          className={cn("h-3.5 w-3.5 text-amber-600", iconClassName)}
-          aria-label="Media opt-out"
-          title="Media opt-out"
-        />
+        <span title="Media opt-out">
+          <CircleOff
+            className={cn("h-3.5 w-3.5 text-amber-600", iconClassName)}
+            aria-label="Media opt-out"
+          />
+        </span>
       ) : null}
     </span>
   );

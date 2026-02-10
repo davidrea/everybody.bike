@@ -162,13 +162,13 @@ Adults log in and interact with the app directly. Each adult can hold **any comb
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Framework | **Next.js 14+** (App Router) | SSR/SSG for performance, API routes for BFF, strong PWA ecosystem |
+| Framework | **Next.js 16** (App Router) | SSR/SSG for performance, API routes for BFF, strong PWA ecosystem |
 | Language | **TypeScript** (strict mode) | Type safety across the stack |
-| Styling | **Tailwind CSS** | Utility-first, easy to theme for rugged aesthetic |
+| Styling | **Tailwind CSS v4** | Utility-first; theme config in `globals.css` via `@theme inline {}` (no `tailwind.config.ts`) |
 | Components | **shadcn/ui** | Accessible, composable primitives built on Radix UI |
 | State | **React Query (TanStack Query)** | Server state caching, optimistic updates for RSVPs |
-| Forms | **React Hook Form + Zod** | Validation with schema reuse between client and server |
-| PWA | **next-pwa** or **Serwist** | Service worker generation, precaching, push support |
+| Forms | **React Hook Form + Zod v4** | Validation with schema reuse between client and server |
+| PWA | **Custom service worker** | Manual `sw.js` for push notifications; offline caching planned |
 | Push Client | **Web Push API** | Browser-native push subscription management |
 
 ### Backend
@@ -179,7 +179,7 @@ Adults log in and interact with the app directly. Each adult can hold **any comb
 | Auth | **Supabase Auth** | Magic link + passkey support, JWT-based sessions |
 | API | **Supabase client SDK + Next.js Route Handlers** | Direct DB access via RLS where possible; route handlers for complex logic |
 | Push Server | **web-push** (Node.js library) | VAPID-based push message dispatch |
-| Background Jobs | **pg_cron** (Supabase) or **custom worker** | Scheduled notification dispatch |
+| Background Jobs | **API route + cron/webhook** | `/api/admin/notifications/dispatch` triggered by external cron (Bearer token auth) |
 | Migrations | **Supabase CLI migrations** | Versioned, sequential SQL migration files managed by `supabase migration` |
 | File Storage | **Supabase Storage** | Profile photos, event images if needed |
 
@@ -194,27 +194,11 @@ Adults log in and interact with the app directly. Each adult can hold **any comb
 
 ---
 
-## Docker Compose Architecture
+## Deployment Architecture
 
-```
-docker-compose.yml
-├── app (Next.js — everybody.bike)
-│   ├── Builds from ./Dockerfile
-│   ├── Depends on supabase-db, supabase-auth, supabase-rest
-│   └── Ports: 3000
-├── supabase-db (PostgreSQL 15)
-│   └── Ports: 5432
-├── supabase-auth (GoTrue)
-│   └── Ports: 9999
-├── supabase-rest (PostgREST)
-│   └── Ports: 3001
-├── supabase-realtime
-│   └── Ports: 4000
-├── supabase-storage
-│   └── Ports: 5000
-└── supabase-studio (optional, dev only)
-    └── Ports: 8080
-```
+**Current state**: Local dev uses Supabase CLI (`supabase start`). Production deployment uses a standalone Dockerfile for the Next.js app, connecting to a hosted or self-hosted Supabase instance.
+
+**Planned**: Docker Compose with self-hosted Supabase containers (not yet implemented).
 
 Environment variables are managed via `.env` files (not committed; `.env.example` provided).
 
@@ -429,70 +413,102 @@ The UI should evoke the **rugged, adventurous spirit of mountain biking**:
 everybody.bike/
 ├── CLAUDE.md                    # This file
 ├── README.md
-├── docker-compose.yml
-├── Dockerfile
+├── Dockerfile                   # Production multi-stage build
 ├── .env.example
 ├── .gitignore
-├── next.config.js
-├── tailwind.config.ts
+├── next.config.ts               # Next.js config (security headers, standalone output)
 ├── tsconfig.json
 ├── package.json
+├── vitest.config.ts             # Test runner config
+├── eslint.config.mjs
+├── postcss.config.mjs
+├── components.json              # shadcn/ui config
 ├── public/
-│   ├── manifest.json
-│   ├── sw.js                    # Service worker (generated)
-│   ├── icons/                   # PWA icons (192, 512, maskable)
-│   └── images/                  # Static images
+│   ├── manifest.json            # PWA manifest (standalone, themed)
+│   ├── sw.js                    # Service worker (push notifications)
+│   └── icons/                   # PWA icons (192, 512, maskable)
 ├── src/
+│   ├── proxy.ts                 # Next.js 16 proxy (replaces middleware.ts)
 │   ├── app/                     # Next.js App Router
-│   │   ├── layout.tsx           # Root layout (auth provider, theme)
-│   │   ├── page.tsx             # Landing / dashboard
-│   │   ├── login/
+│   │   ├── layout.tsx           # Root layout (providers, theme, metadata)
+│   │   ├── page.tsx             # Dashboard
+│   │   ├── error.tsx            # Global error boundary
+│   │   ├── login/page.tsx
+│   │   ├── auth/callback/page.tsx
+│   │   ├── onboarding/page.tsx
+│   │   ├── profile/page.tsx
+│   │   ├── notifications/page.tsx  # Notification preferences
 │   │   ├── events/
-│   │   │   ├── page.tsx         # Event list
-│   │   │   ├── [id]/
-│   │   │   │   ├── page.tsx     # Event detail + dashboard
-│   │   │   │   └── rsvp/
-│   │   │   └── new/
+│   │   │   ├── page.tsx            # Event list (upcoming + past)
+│   │   │   ├── new/page.tsx
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx        # Event detail + dashboard
+│   │   │       ├── edit/page.tsx
+│   │   │       └── report/page.tsx # Printable roster
 │   │   ├── groups/
-│   │   ├── notifications/
-│   │   ├── profile/
-│   │   └── admin/
-│   │       ├── users/           # User management, invites, role assignment
-│   │       ├── import/          # CSV import for riders, parents, roll models
-│   │       ├── notifications/   # Schedule & send notifications
-│   │       └── groups/
+│   │   │   ├── page.tsx
+│   │   │   └── [id]/page.tsx
+│   │   ├── admin/
+│   │   │   ├── page.tsx            # Admin dashboard
+│   │   │   ├── users/page.tsx      # User management + invites
+│   │   │   ├── import/page.tsx     # CSV import wizard
+│   │   │   └── notifications/page.tsx
+│   │   └── api/                    # ~40 API route handlers (BFF pattern)
+│   │       ├── auth/               # me, sign-out, passkey/*
+│   │       ├── events/             # CRUD + [id]/dashboard
+│   │       ├── groups/             # CRUD + [id]/members
+│   │       ├── rsvps/              # mine, create/update, delete
+│   │       ├── riders/             # mine (parent's riders)
+│   │       ├── profile/            # get/update own profile
+│   │       ├── passkeys/           # list, delete
+│   │       ├── roll-model-groups/  # mine
+│   │       ├── notifications/      # subscribe, unsubscribe, vapid, preferences
+│   │       └── admin/              # users, riders, invite, import, notifications, dispatch
 │   ├── components/
-│   │   ├── ui/                  # shadcn/ui primitives
-│   │   ├── events/
-│   │   ├── rsvp/
-│   │   ├── groups/
-│   │   ├── notifications/
-│   │   └── layout/              # Nav, header, footer, bottom bar
+│   │   ├── ui/                  # shadcn/ui primitives (~25 components)
+│   │   ├── events/              # event-card, event-form, event-dashboard, event-report, etc.
+│   │   ├── rsvp/                # rsvp-controls, rsvp-button-group
+│   │   ├── groups/              # group-list, group-form, member-assignment-dialog
+│   │   ├── admin/               # user-list, invite-form, csv-import, notification-scheduler
+│   │   ├── notifications/       # notification-preferences
+│   │   ├── safety/              # safety-indicators (medical alerts, media opt-out)
+│   │   └── layout/              # app-shell, header, sidebar, bottom-nav, theme-provider
 │   ├── lib/
 │   │   ├── supabase/
-│   │   │   ├── client.ts        # Browser Supabase client
-│   │   │   ├── server.ts        # Server Supabase client
-│   │   │   ├── middleware.ts     # Auth middleware
-│   │   │   └── types.ts         # Generated DB types
-│   │   ├── push.ts              # Web Push utilities
-│   │   ├── validators.ts        # Zod schemas
-│   │   └── utils.ts
+│   │   │   ├── client.ts        # Browser client (signOut only — never for data fetching)
+│   │   │   ├── server.ts        # Server client (cookie-based, used in all API routes)
+│   │   │   ├── admin.ts         # Service-role client (bypasses RLS)
+│   │   │   ├── middleware.ts    # Session refresh logic (called by proxy.ts)
+│   │   │   └── types.ts         # Generated Supabase DB types
+│   │   ├── validators.ts        # Zod v4 schemas (looseUuid for seed data compat)
+│   │   ├── utils.ts             # cn(), formResolver() (Zod v4 compat shim)
+│   │   ├── csv-parser.ts        # CSV import parsing
+│   │   ├── recurrence.ts        # RRULE expansion/helpers
+│   │   ├── passkey.ts           # WebAuthn RP ID/origin derivation
+│   │   ├── push.ts              # Client-side push utilities
+│   │   ├── push-server.ts       # Server-side VAPID/web-push wrapper
+│   │   └── url.ts               # Base URL helper (env → headers → default)
 │   ├── hooks/
-│   │   ├── use-auth.ts
-│   │   ├── use-events.ts
-│   │   ├── use-rsvp.ts
-│   │   └── use-push.ts
+│   │   ├── use-auth.ts          # Profile + session via /api/auth/me
+│   │   ├── use-events.ts        # Events queries + mutations
+│   │   ├── use-event-dashboard.ts
+│   │   ├── use-groups.ts        # Groups queries + mutations
+│   │   ├── use-rsvp.ts          # RSVP mutations
+│   │   ├── use-my-riders.ts     # Parent's linked riders
+│   │   ├── use-my-roll-model-groups.ts
+│   │   ├── use-admin-riders.ts
+│   │   ├── use-admin-user-riders.ts
+│   │   ├── use-users.ts         # Admin user management
+│   │   ├── use-push.ts          # Web Push subscription
+│   │   └── use-notifications.ts # Notification preferences + scheduling
 │   └── types/
-│       └── index.ts
+│       └── index.ts             # All TS types, enums, enriched/joined types
 ├── supabase/
-│   ├── config.toml
-│   ├── migrations/              # Numbered SQL migrations
-│   │   └── 00001_initial_schema.sql
+│   ├── config.toml              # Local dev config (auth, SMTP, rate limits)
+│   ├── templates/               # Custom email templates (invite, magic_link)
+│   ├── migrations/              # 5 migration files (initial + incremental)
 │   └── seed.sql                 # Dev seed data
-└── tests/
-    ├── unit/
-    ├── integration/
-    └── e2e/
+└── vitest.config.ts
 ```
 
 ---
@@ -567,13 +583,13 @@ npm run format
 ## Implementation Phases
 
 ### Phase 1 — Foundation
-- [x] Project scaffolding (Next.js, Tailwind, shadcn/ui, TypeScript).
-- [ ] Docker Compose with Supabase containers.
-- [x] Database schema and migrations.
-- [x] Auth flow (magic link + passkey).
+- [x] Project scaffolding (Next.js 16, Tailwind v4, shadcn/ui, TypeScript).
+- [x] Database schema and migrations (5 migration files).
+- [x] Auth flow (magic link + passkey/WebAuthn).
 - [x] Invite onboarding flow (confirm name, optional passkey, add minor riders).
-- [ ] Long-lived session configuration (90+ day refresh token).
+- [x] Long-lived session configuration (90+ day refresh token).
 - [x] Basic layout and navigation with rugged theme.
+- [x] Production Dockerfile (multi-stage, Node 20 Alpine).
 
 ### Phase 2 — Core Features
 - [x] Event CRUD (with recurring event support, series edit/delete).
@@ -590,23 +606,32 @@ npm run format
 
 ### Phase 3 — Notifications & PWA
 - [x] PWA manifest + icons + theme metadata.
-- [ ] Service worker + offline cache.
 - [x] Web Push subscription management.
-- [x] Notification scheduling + targeting.
+- [x] Notification scheduling + targeting + dispatch (with preference filtering).
 - [x] Notification preferences UI.
 - [x] Admin notifications UI (schedule/send).
+- [ ] Service worker offline cache (app shell + recent data).
 
-### Phase 4 — Polish & Testing
-- [ ] Comprehensive test suite (unit, integration, e2e).
-- [ ] Offline support and sync.
+### Phase 4 — Polish & Deployment
 - [x] Dark mode.
-- [ ] Performance optimization.
-- [ ] Security hardening and audit.
+- [x] Security headers (CSP, X-Frame-Options, etc.).
+- [x] Error boundaries (root error.tsx).
+- [ ] Docker Compose with self-hosted Supabase containers.
+- [ ] Comprehensive test suite (unit, integration, e2e).
+- [ ] Offline support and sync (queued RSVPs).
+- [ ] Performance optimization (Lighthouse audit).
+- [ ] CI/CD pipeline.
+- [ ] SMTP provider verified (Mailgun domain pending).
 
 ---
 
 ## Recent Updates (Feb 9, 2026)
 
+- Codebase audit: updated CLAUDE.md to match actual tech stack (Next.js 16, Tailwind v4, Zod v4).
+- Added production Dockerfile (multi-stage Node 20 Alpine build with standalone output).
+- Added security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
+- Added root error boundary (`error.tsx`) for graceful error recovery.
+- Configured long-lived Supabase sessions (90-day refresh token via `config.toml`).
 - Events list now splits Upcoming vs Past, with past events visually muted.
 - Admin RSVP overrides and clears are blocked for past events (UI + API guard).
 - Event dashboard now shows RSVP lists for events without groups (no-group fallback).

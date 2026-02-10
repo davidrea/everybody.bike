@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     .select("id")
     .eq("user_id", user.id);
 
-  const headerList = headers();
+  const headerList = await headers();
   const rpID = getRpIDFromHeaders(headerList);
 
   const options = await generateRegistrationOptions({

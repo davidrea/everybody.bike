@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const headerList = headers();
+    const headerList = await headers();
     const rpID = getRpIDFromHeaders(headerList);
     const origin = getOriginFromHeaders(headerList);
 

@@ -112,7 +112,9 @@ export async function GET(request: Request) {
       .eq("parent_id", profile.id);
 
     riderLinks?.forEach((row) => {
-      const rider = row.riders;
+      const riders = row.riders;
+      if (!riders) return;
+      const rider = Array.isArray(riders) ? riders[0] : riders;
       if (!rider) return;
       if (!isAdmin && rider.group_id) {
         groupIds.add(rider.group_id);
@@ -208,7 +210,11 @@ export async function GET(request: Request) {
     }
 
     const groupNames = (event.event_groups ?? [])
-      .map((group) => group.groups?.name)
+      .map((eg) => {
+        const g = eg.groups as unknown as { name: string } | { name: string }[] | null;
+        if (!g) return null;
+        return Array.isArray(g) ? g[0]?.name : g.name;
+      })
       .filter(Boolean);
     descriptionLines.push(
       `Groups: ${groupNames.length > 0 ? groupNames.join(", ") : "All"}`,

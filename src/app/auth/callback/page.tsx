@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const otpTypes = new Set(["magiclink", "invite", "recovery", "email", "email_change"]);
 
-export default function AuthCallbackPage() {
+function AuthCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -90,5 +90,19 @@ export default function AuthCallbackPage() {
     <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground">
       Completing sign in...
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground">
+          Completing sign in...
+        </div>
+      }
+    >
+      <AuthCallbackInner />
+    </Suspense>
   );
 }

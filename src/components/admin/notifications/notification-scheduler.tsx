@@ -57,7 +57,7 @@ export function NotificationScheduler() {
   const [targetType, setTargetType] = useState<NotificationTargetType>("all");
   const [targetId, setTargetId] = useState<string | null>(null);
 
-  const targetOptions = useMemo(() => {
+  const targetOptions = useMemo((): { value: string; label: string }[] => {
     if (targetType === "group") {
       return (groups ?? []).map((group) => ({
         value: group.id,

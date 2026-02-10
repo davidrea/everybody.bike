@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       ? Uint8Array.from(Buffer.from(publicKeyRaw.slice(2), "hex"))
       : Uint8Array.from(Buffer.from(publicKeyRaw, "base64"));
 
-    const headerList = headers();
+    const headerList = await headers();
     const rpID = getRpIDFromHeaders(headerList);
     const origin = getOriginFromHeaders(headerList);
 
