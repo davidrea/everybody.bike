@@ -200,11 +200,11 @@ export function EventDetail({ eventId }: { eventId: string }) {
             )}
           </div>
 
-          {groups.length > 0 && (
-            <>
-              <Separator />
-              <div className="flex flex-wrap gap-2">
-                {groups.map(
+          <>
+            <Separator />
+            <div className="flex flex-wrap gap-2">
+              {groups.length > 0 ? (
+                groups.map(
                   (g) =>
                     g && (
                       <Badge
@@ -219,10 +219,12 @@ export function EventDetail({ eventId }: { eventId: string }) {
                         {g.name}
                       </Badge>
                     ),
-                )}
-              </div>
-            </>
-          )}
+                )
+              ) : (
+                <Badge variant="secondary">Roll Model/Admin Only</Badge>
+              )}
+            </div>
+          </>
 
           {event.description && (
             <>

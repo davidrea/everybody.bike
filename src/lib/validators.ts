@@ -32,7 +32,7 @@ export const eventSchema = z.object({
   rsvp_deadline: z.string().optional().or(z.literal("")),
   capacity: z.coerce.number().int().positive().optional().or(z.literal("")),
   weather_notes: z.string().max(500).optional().or(z.literal("")),
-  group_ids: z.array(z.string().uuid()).min(1, "Select at least one group"),
+  group_ids: z.array(z.string().uuid()).default([]),
   is_recurring: z.boolean(),
   recurrence_rule: z.string().optional().or(z.literal("")),
 });

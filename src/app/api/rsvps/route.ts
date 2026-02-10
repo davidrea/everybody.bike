@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       (event.event_groups as { group_id: string }[] | null) ?? []
     ).map((group) => group.group_id),
   );
+  const eventHasGroups = eventGroupIds.size > 0;
 
   // Check RSVP deadline (admins bypass)
   if (!callerIsAdmin) {
@@ -146,6 +147,12 @@ export async function POST(request: Request) {
     }
 
     if (rider_id) {
+      if (!eventHasGroups) {
+        return NextResponse.json(
+          { error: "This event is limited to Roll Models and Admins" },
+          { status: 403 },
+        );
+      }
       // Admin RSVPing a minor rider — skip parent-link check
       return upsertMinorRsvp(supabase, event_id, user.id, rider_id, status);
     } else {
@@ -159,6 +166,20 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { error: "Target profile not found" },
           { status: 404 },
+        );
+      }
+
+      if (
+        !eventHasGroups &&
+        !(
+          targetProfile.roles?.includes("roll_model") ||
+          targetProfile.roles?.includes("admin") ||
+          targetProfile.roles?.includes("super_admin")
+        )
+      ) {
+        return NextResponse.json(
+          { error: "This event is limited to Roll Models and Admins" },
+          { status: 403 },
         );
       }
 
@@ -188,6 +209,12 @@ export async function POST(request: Request) {
 
   if (rider_id) {
     // Parent RSVPing for a minor
+    if (!eventHasGroups) {
+      return NextResponse.json(
+        { error: "This event is limited to Roll Models and Admins" },
+        { status: 403 },
+      );
+    }
     if (!profile?.roles?.includes("parent")) {
       return NextResponse.json(
         { error: "Only parents can RSVP for minors" },
@@ -215,7 +242,7 @@ export async function POST(request: Request) {
     // Self-RSVP (roll_model or rider)
     const canSelfRsvp =
       profile?.roles?.includes("roll_model") ||
-      profile?.roles?.includes("rider") ||
+      (eventHasGroups && profile?.roles?.includes("rider")) ||
       profile?.roles?.includes("admin") ||
       profile?.roles?.includes("super_admin");
 

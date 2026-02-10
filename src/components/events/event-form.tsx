@@ -279,6 +279,9 @@ export function EventForm({ event, onSubmit, isPending }: EventFormProps) {
                   />
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Leave all unchecked to make this a Roll Model/Admin-only event.
+              </p>
               <FormMessage />
             </FormItem>
           )}

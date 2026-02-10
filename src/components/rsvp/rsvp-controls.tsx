@@ -33,18 +33,20 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
   const submitRsvp = useSubmitRsvp();
   const clearRsvp = useClearRsvp();
 
+  const eventGroups = event.event_groups
+    .map((entry) => entry.groups)
+    .filter((group): group is NonNullable<typeof group> => Boolean(group));
+  const eventHasGroups = eventGroups.length > 0;
   const canSelfRsvp =
     hasRole("roll_model") ||
-    hasRole("rider") ||
     hasRole("admin") ||
-    hasRole("super_admin");
+    hasRole("super_admin") ||
+    (eventHasGroups && hasRole("rider"));
   const isRollModel = hasRole("roll_model");
   const { data: myRollModelGroupIds, isLoading: rollModelGroupsLoading } =
     useMyRollModelGroupIds(user?.id, isRollModel);
   const isParent = hasRole("parent");
-  const eventGroups = event.event_groups
-    .map((entry) => entry.groups)
-    .filter((group): group is NonNullable<typeof group> => Boolean(group));
+  const canParentRsvp = eventHasGroups && isParent;
   const coachedGroupIdSet = new Set(myRollModelGroupIds ?? []);
   const availableEventGroups = isRollModel
     ? eventGroups.filter((group) => coachedGroupIdSet.has(group.id))
@@ -228,7 +230,7 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
       )}
 
       {/* Parent RSVP for children */}
-      {isParent && myRiders && myRiders.length > 0 && (
+      {canParentRsvp && myRiders && myRiders.length > 0 && (
         <div className="space-y-3">
           <p className="text-sm font-medium">Your Riders&apos; RSVPs</p>
           {myRiders.map((rider) => {
@@ -284,7 +286,13 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
         </div>
       )}
 
-      {!canSelfRsvp && !isParent && (
+      {!eventHasGroups && !canSelfRsvp && (
+        <p className="text-sm text-muted-foreground">
+          This event is limited to Roll Models and Admins.
+        </p>
+      )}
+
+      {!canSelfRsvp && !canParentRsvp && eventHasGroups && (
         <p className="text-sm text-muted-foreground">
           You don&apos;t have a role that requires RSVP for this event.
         </p>

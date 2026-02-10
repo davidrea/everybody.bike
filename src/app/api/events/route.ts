@@ -209,17 +209,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Create event_groups for each event
-    const eventGroupRows = created.flatMap((evt) =>
-      group_ids.map((gid) => ({ event_id: evt.id, group_id: gid })),
-    );
+    if (group_ids.length > 0) {
+      // Create event_groups for each event
+      const eventGroupRows = created.flatMap((evt) =>
+        group_ids.map((gid) => ({ event_id: evt.id, group_id: gid })),
+      );
 
-    const { error: egError } = await supabase
-      .from("event_groups")
-      .insert(eventGroupRows);
+      const { error: egError } = await supabase
+        .from("event_groups")
+        .insert(eventGroupRows);
 
-    if (egError) {
-      return NextResponse.json({ error: egError.message }, { status: 500 });
+      if (egError) {
+        return NextResponse.json({ error: egError.message }, { status: 500 });
+      }
     }
 
     try {
@@ -274,13 +276,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Create event_groups
-  const { error: egError } = await supabase
-    .from("event_groups")
-    .insert(group_ids.map((gid) => ({ event_id: event.id, group_id: gid })));
+  if (group_ids.length > 0) {
+    // Create event_groups
+    const { error: egError } = await supabase
+      .from("event_groups")
+      .insert(group_ids.map((gid) => ({ event_id: event.id, group_id: gid })));
 
-  if (egError) {
-    return NextResponse.json({ error: egError.message }, { status: 500 });
+    if (egError) {
+      return NextResponse.json({ error: egError.message }, { status: 500 });
+    }
   }
 
   try {
