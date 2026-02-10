@@ -11,6 +11,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  const acceptsHtml = request.headers.get("accept")?.includes("text/html") ?? false;
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -38,9 +40,18 @@ export async function updateSession(request: NextRequest) {
 
   // Refresh session — this must be called so the session cookie is refreshed.
   // Do not remove this line.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
+  if (acceptsHtml) {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    user = authUser ?? null;
+  } else {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    user = session?.user ?? null;
+  }
 
   // Public routes that don't require authentication
   const publicPaths = [
@@ -60,7 +71,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // If authenticated, check if onboarding is needed
-  if (user && !isPublicPath && request.nextUrl.pathname !== "/onboarding") {
+  if (user && acceptsHtml && !isPublicPath && request.nextUrl.pathname !== "/onboarding") {
     const { data: profile } = await supabase
       .from("profiles")
       .select("invite_status")
