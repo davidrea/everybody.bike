@@ -42,10 +42,10 @@ insert into auth.users (
   (
     '00000000-0000-0000-0000-000000000000',
     '00000000-0000-0000-0000-000000000001',
-    'authenticated', 'authenticated', 'alex@example.com',
+    'authenticated', 'authenticated', 'dave@daverea.com',
     crypt('password123', gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Alex Thompson","roles":["super_admin","admin"]}',
+    '{"full_name":"Dave Rea","roles":["super_admin","admin"]}',
     false, now(), now(), '', '', '', ''
   ),
   -- 2. Jordan Rivera — admin

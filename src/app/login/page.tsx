@@ -71,6 +71,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
+        shouldCreateUser: false,
         emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           auth_email_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
@@ -79,7 +80,14 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      if (error.message.toLowerCase().includes("signups not allowed")) {
+        setMessage({
+          type: "error",
+          text: "No account found for this email. Please contact your club administrator for an invitation.",
+        });
+      } else {
+        setMessage({ type: "error", text: error.message });
+      }
     } else {
       setMessage({
         type: "success",
