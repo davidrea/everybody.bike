@@ -220,8 +220,8 @@ services:
       GOTRUE_MAILER_URLPATHS_RECOVERY: "/auth/v1/verify"
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
       # Custom email templates
-      GOTRUE_MAILER_TEMPLATES_INVITE: /templates/invite.html
-      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: /templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_INVITE: file:///templates/invite.html
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: file:///templates/magic_link.html
       # Phone auth (disabled)
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: "false"
