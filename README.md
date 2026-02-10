@@ -137,6 +137,8 @@ Add a `cloudflared` service to your `docker-compose.yml` (or run it separately) 
 | `everybody.bike` | `app` | 3000 |
 | `api.everybody.bike` | `kong` | 8000 |
 
+Set `CLOUDFLARE_TUNNEL_TOKEN` in your `.env`.
+
 ### Updating
 
 ```bash

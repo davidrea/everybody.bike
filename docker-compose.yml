@@ -14,6 +14,21 @@ name: everybody-bike
 services:
 
   # ==========================================================================
+  # Cloudflare Tunnel (cloudflared)
+  # ==========================================================================
+
+  cloudflared:
+    container_name: everybody-bike-cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+      kong:
+        condition: service_started
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+
+  # ==========================================================================
   # App — Next.js (everybody.bike)
   # ==========================================================================
 
@@ -62,7 +77,13 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM:-Everybody.Bike <admin@everybody.bike>}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -177,7 +198,7 @@ services:
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       # Session — 90 days for the bike season
       GOTRUE_SESSIONS_TIMEBOX: "2160h"
-      GOTRUE_SESSIONS_INACTIVITY_TIMEOUT: "0"
+      GOTRUE_SESSIONS_INACTIVITY_TIMEOUT: "2160h"
       GOTRUE_REFRESH_TOKEN_ROTATION_ENABLED: "true"
       GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: "10"
       # Email auth

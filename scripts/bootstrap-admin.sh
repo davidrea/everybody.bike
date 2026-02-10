@@ -55,11 +55,29 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# Source .env (handles simple KEY=VALUE lines)
-set -a
-# shellcheck disable=SC1090
-source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
-set +a
+# Load .env safely (supports values with spaces/symbols without quoting)
+while IFS= read -r line || [[ -n "$line" ]]; do
+  # Skip comments and blank lines
+  if [[ "$line" =~ ^[[:space:]]*# ]] || [[ "$line" =~ ^[[:space:]]*$ ]]; then
+    continue
+  fi
+
+  # Split on first '='
+  key="${line%%=*}"
+  value="${line#*=}"
+
+  # Trim whitespace and optional surrounding quotes
+  key="${key#"${key%%[![:space:]]*}"}"
+  key="${key%"${key##*[![:space:]]}"}"
+  value="${value%$'\r'}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  if [[ "$value" =~ ^\".*\"$ ]] || [[ "$value" =~ ^\'.*\'$ ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+
+  export "${key}=${value}"
+done < "$ENV_FILE"
 
 KONG_PORT="${KONG_HTTP_PORT:-8000}"
 KONG_URL="http://localhost:${KONG_PORT}"
@@ -85,12 +103,13 @@ done
 # ---------------------------------------------------------------------------
 
 echo "Checking Supabase API gateway..."
-if ! curl -sf "${KONG_URL}/auth/v1/health" >/dev/null 2>&1; then
-  echo "Error: Cannot reach Kong at ${KONG_URL}"
+HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${KONG_URL}/auth/v1/health" || true)
+if [[ "$HEALTH_STATUS" != "200" && "$HEALTH_STATUS" != "401" ]]; then
+  echo "Error: Cannot reach Kong at ${KONG_URL} (status: ${HEALTH_STATUS})"
   echo "Make sure the stack is running: docker compose up -d"
   exit 1
 fi
-echo "  API gateway OK"
+echo "  API gateway OK (status: ${HEALTH_STATUS})"
 
 # ---------------------------------------------------------------------------
 # Step 1: Create user via GoTrue admin API
@@ -161,6 +180,7 @@ echo "  Profile updated"
 echo "Generating login link..."
 
 SITE="${SITE_URL:-http://localhost:3000}"
+SITE="${SITE%/}"
 REDIRECT_TO="${SITE}/auth/callback"
 
 LINK_RESPONSE=$(curl -sf -X POST "${KONG_URL}/auth/v1/admin/generate_link" \
@@ -170,9 +190,7 @@ LINK_RESPONSE=$(curl -sf -X POST "${KONG_URL}/auth/v1/admin/generate_link" \
   -d "{
     \"type\": \"magiclink\",
     \"email\": \"${EMAIL}\",
-    \"options\": {
-      \"redirect_to\": \"${REDIRECT_TO}\"
-    }
+    \"redirect_to\": \"${REDIRECT_TO}\"
   }" 2>&1)
 
 ACTION_LINK=$(echo "$LINK_RESPONSE" | jq -r '.properties.action_link // .action_link // empty')
