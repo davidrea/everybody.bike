@@ -69,20 +69,5 @@ create policy "rsvps_select_admin" on public.rsvps
   for select to authenticated
   using (public.is_admin());
 
--- ============================================================
--- 3. MEDIUM: Add admin INSERT/DELETE policies for RSVPs
---    Admin RSVP overrides use the admin client (service role),
---    but adding explicit RLS policies for completeness.
--- ============================================================
-
-create policy "rsvps_insert_admin" on public.rsvps
-  for insert to authenticated
-  with check (public.is_admin());
-
-create policy "rsvps_delete_admin" on public.rsvps
-  for delete to authenticated
-  using (public.is_admin());
-
-create policy "rsvps_delete_own" on public.rsvps
-  for delete to authenticated
-  using (user_id = auth.uid());
+-- Note: rsvps_insert_admin, rsvps_delete_admin, and rsvps_delete_own
+-- already exist from 20260209000000_admin_rsvp_policies.sql — no changes needed.
