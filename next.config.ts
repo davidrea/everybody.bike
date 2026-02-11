@@ -9,10 +9,11 @@ const nextConfig: NextConfig = {
     const connectSrc = supabaseUrl
       ? `'self' ${supabaseUrl} wss://${new URL(supabaseUrl).host}`
       : "'self'";
+    const isDev = process.env.NODE_ENV === "development";
     const csp = [
       "default-src 'self'",
       // Next.js requires 'unsafe-inline' for styles (CSS-in-JS) and 'unsafe-eval' in dev
-      `script-src 'self'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+      `script-src 'self'${isDev ? " 'unsafe-eval' 'unsafe-inline'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self'",
