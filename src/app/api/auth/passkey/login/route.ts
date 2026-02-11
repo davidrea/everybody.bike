@@ -3,8 +3,16 @@ import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { headers } from "next/headers";
 import { getRpIDFromHeaders } from "@/lib/passkey";
 import { cookies } from "next/headers";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 
-export async function GET() {
+// 20 challenge requests per 5 minutes per IP
+const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 20 });
+
+export async function GET(request: Request) {
+  if (!limiter.check(getClientIp(request))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const headerList = await headers();
     const rpID = getRpIDFromHeaders(headerList);

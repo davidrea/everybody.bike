@@ -594,6 +594,8 @@ everybody.bike/
 - **CSRF**: Handled by Supabase Auth (cookie-based with PKCE).
 - **XSS**: React's default escaping + CSP headers.
 - **Secrets management**: VAPID keys, Supabase service role key, and JWT secrets stored as environment variables, never committed.
+  - In dev, the service role key can be read from `supabase status` (the CLI may label it as "Secret").
+  - The bootstrap script falls back to `supabase status --output json` when `SERVICE_ROLE_KEY` is not set.
 - **Rate limiting**: Applied to auth endpoints and push subscription creation.
 - **Data privacy**: Minor rider data treated as sensitive. Minimal data collection. No analytics tracking of children. CSV uploads are processed server-side and not persisted after import.
 

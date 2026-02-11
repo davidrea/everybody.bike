@@ -82,8 +82,25 @@ done < "$ENV_FILE"
 KONG_PORT="${KONG_HTTP_PORT:-8000}"
 KONG_URL="http://localhost:${KONG_PORT}"
 
+# ---------------------------------------------------------------------------
+# Resolve service role key (prefer explicit env; fallback to local supabase status)
+# ---------------------------------------------------------------------------
+
+if [[ -z "${SERVICE_ROLE_KEY:-}" && -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
+  SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}"
+fi
+
 if [[ -z "${SERVICE_ROLE_KEY:-}" ]]; then
-  echo "Error: SERVICE_ROLE_KEY not set in .env"
+  if command -v npx >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    STATUS_JSON="$(npx supabase status --output json 2>/dev/null || true)"
+    if [[ -n "$STATUS_JSON" ]]; then
+      SERVICE_ROLE_KEY="$(echo "$STATUS_JSON" | jq -r '.SERVICE_ROLE_KEY // .SECRET_KEY // empty')"
+    fi
+  fi
+fi
+
+if [[ -z "${SERVICE_ROLE_KEY:-}" ]]; then
+  echo "Error: SERVICE_ROLE_KEY not set in .env and could not be read from supabase status"
   exit 1
 fi
 

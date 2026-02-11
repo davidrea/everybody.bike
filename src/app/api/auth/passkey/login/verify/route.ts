@@ -4,8 +4,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getOriginFromHeaders, getRpIDFromHeaders } from "@/lib/passkey";
 import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+
+// 10 verification attempts per 5 minutes per IP (tighter — failed attempts are suspicious)
+const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 10 });
 
 export async function POST(request: Request) {
+  if (!limiter.check(getClientIp(request))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const cookieStore = await cookies();
   const expectedChallenge = cookieStore.get("webauthn_challenge")?.value;
 
