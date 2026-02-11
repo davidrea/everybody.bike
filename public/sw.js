@@ -11,8 +11,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "everybody.bike";
   const options = {
     body: data.body || "New update from everybody.bike",
-    icon: data.icon || "/icons/icon-192.png",
-    badge: data.badge || "/icons/icon-192.png",
+    icon: data.icon || "/favicon.ico",
+    badge: data.badge || "/favicon.ico",
     data: {
       url: data.url || "/",
     },

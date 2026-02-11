@@ -10,10 +10,17 @@ const nextConfig: NextConfig = {
       ? `'self' ${supabaseUrl} wss://${new URL(supabaseUrl).host}`
       : "'self'";
     const isDev = process.env.NODE_ENV === "development";
+    // Next.js App Router emits inline bootstrap scripts in production.
+    // Blocking inline scripts breaks hydration and RSC page stream loading.
+    const scriptSrc = [
+      "'self'",
+      "'unsafe-inline'",
+      "https://static.cloudflareinsights.com",
+      ...(isDev ? ["'unsafe-eval'"] : []),
+    ].join(" ");
     const csp = [
       "default-src 'self'",
-      // Next.js requires 'unsafe-inline' for styles (CSS-in-JS) and 'unsafe-eval' in dev
-      `script-src 'self'${isDev ? " 'unsafe-eval' 'unsafe-inline'" : ""}`,
+      `script-src ${scriptSrc}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self'",
