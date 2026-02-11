@@ -3,8 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inviteSchema } from "@/lib/validators";
 import { getBaseUrl } from "@/lib/url";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+
+// 20 invites per 5 minutes per IP (admins batch-inviting during setup)
+const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 20 });
 
 export async function POST(request: Request) {
+  if (!limiter.check(getClientIp(request))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

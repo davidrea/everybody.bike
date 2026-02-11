@@ -123,12 +123,38 @@ services:
     entrypoint: ["sh", "-c"]
     command:
       - |
+        DB="${POSTGRES_DB:-postgres}"
+        CONN="psql -h db -U postgres -d $$DB"
+
+        # Create tracking table if it doesn't exist
+        $$CONN -c "CREATE TABLE IF NOT EXISTS public._applied_migrations (
+          name TEXT PRIMARY KEY,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );" 2>&1
+
         echo "Applying app migrations..."
+        applied=0
+        skipped=0
+        failed=0
         for f in /migrations/*.sql; do
-          echo "  -> $$(basename $$f)"
-          psql -h db -U postgres -d ${POSTGRES_DB:-postgres} -f "$$f" 2>&1 || true
+          fname=$$(basename "$$f")
+          already=$$($$CONN -tAc "SELECT 1 FROM public._applied_migrations WHERE name='$$fname'" 2>/dev/null)
+          if [ "$$already" = "1" ]; then
+            echo "  [skip] $$fname (already applied)"
+            skipped=$$((skipped+1))
+            continue
+          fi
+          echo "  [apply] $$fname"
+          if $$CONN -v ON_ERROR_STOP=1 -f "$$f" 2>&1; then
+            $$CONN -c "INSERT INTO public._applied_migrations (name) VALUES ('$$fname');" 2>&1
+            applied=$$((applied+1))
+          else
+            echo "  [FAIL] $$fname — stopping."
+            failed=$$((failed+1))
+            exit 1
+          fi
         done
-        echo "Done."
+        echo "Done. Applied: $$applied, Skipped: $$skipped, Failed: $$failed"
     profiles:
       - migrate
 
@@ -151,7 +177,7 @@ services:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
       KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,request-termination
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,request-termination,rate-limiting
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
       SUPABASE_ANON_KEY: ${ANON_KEY}
@@ -225,6 +251,18 @@ services:
       # Phone auth (disabled)
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: "false"
+      # ── Rate Limits ──
+      # Emails sent per hour (magic link + invite combined)
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-30}
+      # Sign-in/signup requests per 5 min per IP
+      GOTRUE_RATE_LIMIT_SIGN_IN_SIGN_UPS: ${GOTRUE_RATE_LIMIT_SIGN_IN_SIGN_UPS:-10}
+      # OTP/magic link verifications per 5 min per IP
+      GOTRUE_RATE_LIMIT_TOKEN_VERIFICATIONS: ${GOTRUE_RATE_LIMIT_TOKEN_VERIFICATIONS:-10}
+      # Token refresh per 5 min per IP
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: ${GOTRUE_RATE_LIMIT_TOKEN_REFRESH:-30}
+      # Minimum time between resending confirmation/reset emails (seconds)
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: "false"
 
   # ==========================================================================
   # Supabase — REST API (PostgREST)
@@ -470,6 +508,8 @@ services:
       - ./supabase/migrations/20260209120000_event_notification_schedule.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/005_event_notification_schedule.sql:Z
       - ./supabase/migrations/20260209160000_passkey_names.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/006_passkey_names.sql:Z
       - ./supabase/migrations/20260209190000_calendar_feed_tokens.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/007_calendar_feed_tokens.sql:Z
+      - ./supabase/migrations/20260211000000_security_hardening.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/008_security_hardening.sql:Z
+      - ./supabase/migrations/20260211100000_applied_migrations_rls.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/009_applied_migrations_rls.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]

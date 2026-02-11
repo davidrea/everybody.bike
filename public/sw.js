@@ -21,9 +21,26 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+/**
+ * Validate that a URL is safe to navigate to (same-origin or relative path).
+ * Blocks javascript:, data:, and cross-origin URLs.
+ */
+function isSafeUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  // Relative paths starting with / are always safe
+  if (url.startsWith("/") && !url.startsWith("//")) return true;
+  try {
+    const parsed = new URL(url, self.location.origin);
+    return parsed.origin === self.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification?.data?.url || "/";
+  const rawUrl = event.notification?.data?.url || "/";
+  const url = isSafeUrl(rawUrl) ? rawUrl : "/";
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {

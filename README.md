@@ -44,8 +44,9 @@ cp .env.example .env.local
 
 # Start the local Supabase stack
 npx supabase start
-# Note the API URL, anon key, and service role key from the output
-# Paste them into .env.local
+# Note the API URL, anon key, and service role key from the output.
+# The service role key may appear as "Secret" in the CLI.
+# Paste them into .env.local (or .env if you prefer one file).
 
 # Apply seed data (optional, for dev)
 npx supabase db reset
@@ -55,6 +56,17 @@ npm run dev
 ```
 
 The app will be at http://localhost:3000. Supabase Studio is at http://localhost:54323, and Inbucket (email testing) at http://localhost:54324.
+
+### Dev Bootstrapping (First Super Admin)
+
+For local dev, you can still use the bootstrap script. It now auto-detects the
+service role key from `supabase status` if `SERVICE_ROLE_KEY` is not set,
+so it won't break production deployments that rely on `.env`.
+
+```bash
+# With local Supabase running
+bash scripts/bootstrap-admin.sh --email you@example.com --name "Your Name"
+```
 
 ## Deployment
 
