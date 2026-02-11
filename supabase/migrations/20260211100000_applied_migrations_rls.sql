@@ -1,6 +1,5 @@
--- Enable RLS on the migration tracking table.
--- No policies are added: only the postgres superuser (used by the
--- migrate runner) and the service_role can access this table.
--- Authenticated users are fully blocked.
+-- Clean up: drop the old public._applied_migrations table if it exists.
+-- The migrate runner now uses _migrations.applied (private schema,
+-- not exposed to PostgREST) so this table is no longer needed.
 
-alter table if exists public._applied_migrations enable row level security;
+drop table if exists public._applied_migrations;

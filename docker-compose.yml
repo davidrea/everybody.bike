@@ -126,11 +126,17 @@ services:
         DB="${POSTGRES_DB:-postgres}"
         CONN="psql -h db -U postgres -d $$DB"
 
-        # Create tracking table if it doesn't exist
-        $$CONN -c "CREATE TABLE IF NOT EXISTS public._applied_migrations (
+        # Create tracking table in a private schema (not exposed via PostgREST)
+        $$CONN -c "CREATE SCHEMA IF NOT EXISTS _migrations;" 2>&1
+        $$CONN -c "CREATE TABLE IF NOT EXISTS _migrations.applied (
           name TEXT PRIMARY KEY,
           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );" 2>&1
+        # Migrate from old public._applied_migrations table if it exists
+        $$CONN -c "INSERT INTO _migrations.applied (name, applied_at)
+          SELECT name, applied_at FROM public._applied_migrations
+          ON CONFLICT DO NOTHING;" 2>/dev/null
+        $$CONN -c "DROP TABLE IF EXISTS public._applied_migrations;" 2>/dev/null
 
         echo "Applying app migrations..."
         applied=0
@@ -138,7 +144,7 @@ services:
         failed=0
         for f in /migrations/*.sql; do
           fname=$$(basename "$$f")
-          already=$$($$CONN -tAc "SELECT 1 FROM public._applied_migrations WHERE name='$$fname'" 2>/dev/null)
+          already=$$($$CONN -tAc "SELECT 1 FROM _migrations.applied WHERE name='$$fname'" 2>/dev/null)
           if [ "$$already" = "1" ]; then
             echo "  [skip] $$fname (already applied)"
             skipped=$$((skipped+1))
@@ -146,7 +152,7 @@ services:
           fi
           echo "  [apply] $$fname"
           if $$CONN -v ON_ERROR_STOP=1 -f "$$f" 2>&1; then
-            $$CONN -c "INSERT INTO public._applied_migrations (name) VALUES ('$$fname');" 2>&1
+            $$CONN -c "INSERT INTO _migrations.applied (name) VALUES ('$$fname');" 2>&1
             applied=$$((applied+1))
           else
             echo "  [FAIL] $$fname — stopping."
