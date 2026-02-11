@@ -4,6 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseCsv } from "@/lib/csv-parser";
 import type { CsvImportResult } from "@/types";
 
+// Roles that may be assigned via CSV import.
+// super_admin is intentionally excluded — it can only be granted via the
+// dedicated role-management UI by an existing super_admin.
+const IMPORTABLE_ROLES = new Set(["admin", "roll_model", "parent", "rider"]);
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -247,16 +252,28 @@ async function handleAdultCommit(
     try {
       const fullName = row.full_name?.trim();
       const email = row.email?.trim().toLowerCase();
-      const roles = (row.roles ?? "")
+      const rawRoles = (row.roles ?? "")
         .split(/[;,]/)
         .map((r) => r.trim().toLowerCase())
         .filter(Boolean);
 
-      if (!fullName || !email || roles.length === 0) {
+      if (!fullName || !email || rawRoles.length === 0) {
         result.errors.push({ row: rowNum, message: "Missing required fields" });
         result.skipped++;
         continue;
       }
+
+      // Validate all roles against allowlist (prevents super_admin injection)
+      const invalidRoles = rawRoles.filter((r) => !IMPORTABLE_ROLES.has(r));
+      if (invalidRoles.length > 0) {
+        result.errors.push({
+          row: rowNum,
+          message: `Invalid role(s): ${invalidRoles.join(", ")}. Allowed: ${[...IMPORTABLE_ROLES].join(", ")}`,
+        });
+        result.skipped++;
+        continue;
+      }
+      const roles = rawRoles;
 
       // Check existing
       const { data: existing } = await supabase

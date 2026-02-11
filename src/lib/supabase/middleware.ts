@@ -2,10 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  // Skip session refresh for Next.js internal prefetch requests.
+  // These headers are only set by the Next.js router on same-origin
+  // navigation prefetches. The `purpose` header is excluded because
+  // it can be trivially forged in an external HTTP request.
   const isPrefetch =
     request.headers.get("x-middleware-prefetch") === "1" ||
-    request.headers.get("next-router-prefetch") === "1" ||
-    request.headers.get("purpose") === "prefetch";
+    request.headers.get("next-router-prefetch") === "1";
 
   if (isPrefetch) {
     return NextResponse.next({ request });

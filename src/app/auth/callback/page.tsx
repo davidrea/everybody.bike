@@ -14,7 +14,9 @@ function AuthCallbackInner() {
     const supabase = createClient();
 
     async function completeAuth() {
-      const next = searchParams.get("next") ?? "/";
+      // Validate that redirect target is a safe relative path (prevent open redirect)
+      const rawNext = searchParams.get("next") ?? "/";
+      const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
       const code = searchParams.get("code");
       const tokenHash = searchParams.get("token_hash");
       const type = searchParams.get("type");

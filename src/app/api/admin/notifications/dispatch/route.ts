@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWebPushNotification } from "@/lib/push-server";
 import { sendEmail, isEmailConfigured } from "@/lib/email";
 import { getBaseUrl } from "@/lib/url";
+import { timingSafeEqual } from "crypto";
 
 const MAX_BATCH = 25;
 
@@ -254,8 +255,20 @@ async function getProfileEmails(
 
 function resolveUrl(baseUrl: string, url: string | null) {
   if (!url) return baseUrl;
-  if (/^https?:\/\//i.test(url)) return url;
+  // Only allow relative paths and same-origin absolute URLs
   if (url.startsWith("/")) return `${baseUrl}${url}`;
+  if (/^https?:\/\//i.test(url)) {
+    // Validate that absolute URLs point to the same origin
+    try {
+      const parsed = new URL(url);
+      const base = new URL(baseUrl);
+      if (parsed.host === base.host) return url;
+    } catch {
+      // Fall through to baseUrl
+    }
+    // External URLs are not allowed — return app root
+    return baseUrl;
+  }
   return `${baseUrl}/${url}`;
 }
 
@@ -263,7 +276,18 @@ function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: Request) {
@@ -276,7 +300,12 @@ export async function POST(request: Request) {
   }
 
   const authHeader = request.headers.get("authorization");
-  if (!authHeader || authHeader !== `Bearer ${secret}`) {
+  const expected = `Bearer ${secret}`;
+  if (
+    !authHeader ||
+    authHeader.length !== expected.length ||
+    !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -363,9 +392,10 @@ export async function POST(request: Request) {
             const text = `${notification.body}${
               resolvedUrl ? `\n\n${resolvedUrl}` : ""
             }`;
+            const safeUrl = isSafeHttpUrl(resolvedUrl) ? resolvedUrl : "";
             const html = `<p>${escapeHtml(notification.body)}</p>${
-              resolvedUrl
-                ? `<p><a href=\"${resolvedUrl}\">View details</a></p>`
+              safeUrl
+                ? `<p><a href="${escapeHtml(safeUrl)}">View details</a></p>`
                 : ""
             }`;
             await sendEmail({
