@@ -509,6 +509,7 @@ services:
       - ./supabase/migrations/20260209160000_passkey_names.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/006_passkey_names.sql:Z
       - ./supabase/migrations/20260209190000_calendar_feed_tokens.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/007_calendar_feed_tokens.sql:Z
       - ./supabase/migrations/20260211000000_security_hardening.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/008_security_hardening.sql:Z
+      - ./supabase/migrations/20260211100000_applied_migrations_rls.sql:/docker-entrypoint-initdb.d/zzz-app-migrations/009_applied_migrations_rls.sql:Z
       - db-config:/etc/postgresql-custom
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
