@@ -6,3 +6,5 @@ node_modules
 .env.*.local
 supabase/.temp
 supabase/.branches
+volumes/db/data
+volumes/storage

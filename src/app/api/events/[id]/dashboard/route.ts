@@ -15,32 +15,33 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 1. Get event with groups
-  const { data: event, error: eventError } = await supabase
-    .from("events")
-    .select(
-      "*, event_groups(group_id, groups(*))",
-    )
-    .eq("id", eventId)
-    .single();
+  // Phase 1: Event + RSVPs in parallel (RSVPs only need eventId)
+  const [eventResult, rsvpsResult] = await Promise.all([
+    supabase
+      .from("events")
+      .select("*, event_groups(group_id, groups(*))")
+      .eq("id", eventId)
+      .single(),
+    supabase
+      .from("rsvps")
+      .select("*")
+      .eq("event_id", eventId),
+  ]);
 
+  const { data: event, error: eventError } = eventResult;
   if (eventError || !event) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
+
+  const { data: rsvps } = rsvpsResult;
 
   const groupIds = (event.event_groups as { group_id: string }[]).map(
     (eg) => eg.group_id,
   );
 
-  // 2. Get all RSVPs for this event
-  const { data: rsvps } = await supabase
-    .from("rsvps")
-    .select("*")
-    .eq("event_id", eventId);
-
   // Build lookup for RSVPs
-  const selfRsvpMap = new Map<string, { status: string; assigned_group_id: string | null }>(); // user_id -> status + assignment
-  const riderRsvpMap = new Map<string, string>(); // rider_id -> status
+  const selfRsvpMap = new Map<string, { status: string; assigned_group_id: string | null }>();
+  const riderRsvpMap = new Map<string, string>();
 
   (rsvps ?? []).forEach((r) => {
     if (r.rider_id) {
@@ -57,24 +58,29 @@ export async function GET(
     const selfRsvpUserIds = Array.from(selfRsvpMap.keys());
     const riderRsvpIds = Array.from(riderRsvpMap.keys());
 
-    const { data: selfProfiles } = selfRsvpUserIds.length
-      ? await supabase
-          .from("profiles")
-          .select(
-            "id, full_name, avatar_url, medical_alerts, media_opt_out, roles, rider_group_id",
-          )
-          .in("id", selfRsvpUserIds)
-      : { data: [] };
+    // Fetch profiles and minor riders in parallel
+    const [selfProfilesResult, minorRidersResult] = await Promise.all([
+      selfRsvpUserIds.length
+        ? supabase
+            .from("profiles")
+            .select(
+              "id, full_name, avatar_url, medical_alerts, media_opt_out, roles, rider_group_id",
+            )
+            .in("id", selfRsvpUserIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; avatar_url: string | null; medical_alerts: string | null; media_opt_out: boolean; roles: string[]; rider_group_id: string | null }[] }),
+      riderRsvpIds.length
+        ? supabase
+            .from("riders")
+            .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
+            .in("id", riderRsvpIds)
+        : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; group_id: string | null; medical_notes: string | null; media_opt_out: boolean }[] }),
+    ]);
 
-    const { data: minorRiders } = riderRsvpIds.length
-      ? await supabase
-          .from("riders")
-          .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
-          .in("id", riderRsvpIds)
-      : { data: [] };
+    const selfProfiles = selfProfilesResult.data ?? [];
+    const minorRiders = minorRidersResult.data ?? [];
 
     const rollModelCandidates =
-      (selfProfiles ?? []).filter(
+      selfProfiles.filter(
         (p) =>
           p.roles?.includes("roll_model") ||
           p.roles?.includes("admin") ||
@@ -82,10 +88,10 @@ export async function GET(
       ) ?? [];
 
     const adultRiders =
-      (selfProfiles ?? []).filter((p) => p.roles?.includes("rider")) ?? [];
+      selfProfiles.filter((p) => p.roles?.includes("rider")) ?? [];
 
     const riderGroupIds = new Set<string>();
-    (minorRiders ?? []).forEach((r) => {
+    minorRiders.forEach((r) => {
       if (r.group_id) riderGroupIds.add(r.group_id);
     });
     adultRiders.forEach((r) => {
@@ -158,9 +164,9 @@ export async function GET(
       created_at: new Date().toISOString(),
     };
 
-    const hasRiders = (minorRiders?.length ?? 0) + adultRiders.length > 0;
+    const hasRiders = minorRiders.length + adultRiders.length > 0;
     const hasUnassignedRiders =
-      (minorRiders ?? []).some((r) => !r.group_id) ||
+      minorRiders.some((r) => !r.group_id) ||
       adultRiders.some((r) => !r.rider_group_id);
 
     const groupsForRiders = !hasRiders
@@ -172,7 +178,7 @@ export async function GET(
           : [unassignedGroup];
 
     const ridersByGroup = groupsForRiders.map((g) => {
-      const groupMinors = (minorRiders ?? [])
+      const groupMinors = minorRiders
         .filter((r) => (g.id === "unassigned" ? !r.group_id : r.group_id === g.id))
         .map((r) => ({
           id: r.id,
@@ -262,8 +268,27 @@ export async function GET(
     });
   }
 
-  // 3. Get roll models assigned to these groups
-  let rmGroupRows: {
+  // Phase 2: Roll models, minor riders, adult riders in parallel (all need groupIds)
+  const [rmGroupResult, minorRidersResult, adultRidersResult] = await Promise.all([
+    supabase
+      .from("roll_model_groups")
+      .select(
+        "roll_model_id, profiles:roll_model_id(id, full_name, avatar_url, medical_alerts, media_opt_out)",
+      )
+      .in("group_id", groupIds),
+    supabase
+      .from("riders")
+      .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
+      .in("group_id", groupIds),
+    supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url, rider_group_id, medical_alerts, media_opt_out")
+      .in("rider_group_id", groupIds)
+      .contains("roles", ["rider"]),
+  ]);
+
+  // Deduplicate roll models (may coach multiple event groups)
+  const rmGroupRows = (rmGroupResult.data as unknown as {
     roll_model_id: string;
     profiles: {
       id: string;
@@ -272,18 +297,8 @@ export async function GET(
       medical_alerts: string | null;
       media_opt_out: boolean;
     } | null;
-  }[] = [];
-  if (groupIds.length) {
-    const { data } = await supabase
-      .from("roll_model_groups")
-      .select(
-        "roll_model_id, profiles:roll_model_id(id, full_name, avatar_url, medical_alerts, media_opt_out)",
-      )
-      .in("group_id", groupIds);
-    rmGroupRows = (data as unknown as typeof rmGroupRows) ?? [];
-  }
+  }[]) ?? [];
 
-  // Deduplicate roll models (may coach multiple event groups)
   const rmMap = new Map<
     string,
     {
@@ -302,42 +317,25 @@ export async function GET(
   });
   const allRollModels = Array.from(rmMap.values());
 
-  // 4. Get minor riders in these groups
-  let minorRiders: {
+  const minorRiders = (minorRidersResult.data as {
     id: string;
     first_name: string;
     last_name: string;
     group_id: string | null;
     medical_notes: string | null;
     media_opt_out: boolean;
-  }[] = [];
-  if (groupIds.length) {
-    const { data } = await supabase
-      .from("riders")
-      .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
-      .in("group_id", groupIds);
-    minorRiders = (data as typeof minorRiders) ?? [];
-  }
+  }[]) ?? [];
 
-  // 5. Get adult riders in these groups
-  let adultRiders: {
+  const adultRiders = (adultRidersResult.data as {
     id: string;
     full_name: string;
     avatar_url: string | null;
     rider_group_id: string | null;
     medical_alerts: string | null;
     media_opt_out: boolean;
-  }[] = [];
-  if (groupIds.length) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url, rider_group_id, medical_alerts, media_opt_out")
-      .in("rider_group_id", groupIds)
-      .contains("roles", ["rider"]);
-    adultRiders = (data as typeof adultRiders) ?? [];
-  }
+  }[]) ?? [];
 
-  // 6. Build groups data
+  // Build groups data
   const groups = (event.event_groups as { group_id: string; groups: { id: string; name: string; color: string } }[])
     .map((eg) => eg.groups)
     .filter(Boolean);

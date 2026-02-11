@@ -27,7 +27,7 @@ function buildQueryString(filters?: EventFilters): string {
 
 export function useEvents(filters?: EventFilters) {
   return useQuery({
-    queryKey: ["events", filters],
+    queryKey: ["events", "list", filters],
     queryFn: async (): Promise<EventWithGroups[]> => {
       const res = await fetch(`/api/events${buildQueryString(filters)}`);
       if (!res.ok) throw new Error("Failed to fetch events");
@@ -38,7 +38,7 @@ export function useEvents(filters?: EventFilters) {
 
 export function useEvent(id: string | undefined) {
   return useQuery({
-    queryKey: ["events", id],
+    queryKey: ["events", "detail", id],
     enabled: !!id,
     queryFn: async (): Promise<EventWithGroups> => {
       const res = await fetch(`/api/events/${id}`);
@@ -77,7 +77,7 @@ export function useCreateEvent() {
       return res.json();
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["events", "list"] });
     },
   });
 }
@@ -106,8 +106,9 @@ export function useUpdateEvent() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["events"] });
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["events", "list"] });
+      qc.invalidateQueries({ queryKey: ["events", "detail", vars.id] });
     },
   });
 }
@@ -133,7 +134,7 @@ export function useDeleteEvent() {
       return res.json();
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["events", "list"] });
     },
   });
 }
