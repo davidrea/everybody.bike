@@ -315,6 +315,35 @@ export async function GET(
       rmMap.set(rm.id, rm);
     }
   });
+
+  // Also include roll_model/admin/super_admin users who self-RSVPed
+  // but aren't in roll_model_groups for this event's groups (e.g. role
+  // was added after the RSVP, or they coach groups not on this event).
+  const additionalRmIds = Array.from(selfRsvpMap.keys()).filter(
+    (uid) => !rmMap.has(uid),
+  );
+  if (additionalRmIds.length > 0) {
+    const { data: additionalProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url, medical_alerts, media_opt_out, roles")
+      .in("id", additionalRmIds);
+    (additionalProfiles ?? []).forEach((p) => {
+      if (
+        p.roles?.includes("roll_model") ||
+        p.roles?.includes("admin") ||
+        p.roles?.includes("super_admin")
+      ) {
+        rmMap.set(p.id, {
+          id: p.id,
+          full_name: p.full_name,
+          avatar_url: p.avatar_url,
+          medical_alerts: p.medical_alerts,
+          media_opt_out: p.media_opt_out,
+        });
+      }
+    });
+  }
+
   const allRollModels = Array.from(rmMap.values());
 
   const minorRiders = (minorRidersResult.data as {
