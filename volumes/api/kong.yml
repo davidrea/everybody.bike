@@ -44,6 +44,13 @@ services:
           - /auth/v1/verify
     plugins:
       - name: cors
+      - name: rate-limiting
+        config:
+          minute: 20
+          hour: 100
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
   - name: auth-v1-open-callback
     url: http://auth:9999/callback
     routes:
@@ -53,6 +60,13 @@ services:
           - /auth/v1/callback
     plugins:
       - name: cors
+      - name: rate-limiting
+        config:
+          minute: 20
+          hour: 100
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
   - name: auth-v1-open-authorize
     url: http://auth:9999/authorize
     routes:
@@ -62,6 +76,13 @@ services:
           - /auth/v1/authorize
     plugins:
       - name: cors
+      - name: rate-limiting
+        config:
+          minute: 20
+          hour: 100
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
 
   ## Secure Auth routes
   - name: auth-v1
@@ -83,6 +104,13 @@ services:
           allow:
             - admin
             - anon
+      - name: rate-limiting
+        config:
+          minute: 60
+          hour: 500
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
 
   ## Secure REST routes
   - name: rest-v1

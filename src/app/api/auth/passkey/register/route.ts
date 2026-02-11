@@ -3,8 +3,16 @@ import { generateRegistrationOptions } from "@simplewebauthn/server";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getRpIDFromHeaders, rpName } from "@/lib/passkey";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+
+// 10 registration attempts per 5 minutes per IP
+const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 10 });
 
 export async function GET(request: Request) {
+  if (!limiter.check(getClientIp(request))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
