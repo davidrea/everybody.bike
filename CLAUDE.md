@@ -236,17 +236,26 @@ Environment variables are managed via `.env` files (not committed; `.env.product
 
 ---
 
-## Recent Updates (2026-02-10)
+## Recent Updates (2026-02-11)
 
-- **Docker Compose production deployment**: Full self-hosted Supabase stack (14 services) + Next.js app + cron for notifications.
+- **Security hardening pass completed** across auth, RLS, input validation, and headers (`20260211000000_security_hardening.sql` + app changes).
+- **Rate limiting added at three layers**: GoTrue config, Kong gateway, and app-level route limits for invite/passkey/push endpoints.
+- **Migration safety improvements**: migration tracking moved into private `_migrations` schema with RLS; migration init/runner behavior tightened (including idempotent migrate runner behavior).
+- **Deployment and dev fixes**: Docker Compose API endpoint corrected, invite template fixes applied, login/bootstrap flow restored for dev.
+- **Event flow fixes**: event creation edge cases fixed, including allowing events with no groups (RM/admin only scenarios).
+- **Performance update**: middleware adjustments to improve page load behavior.
+
+### Previous (2026-02-10)
+
+- **Docker Compose production deployment**: full self-hosted Supabase stack + Next.js app + cron for notifications.
 - Added `SUPABASE_URL` server-only env var for internal Docker routing (`server.ts`, `admin.ts` prefer it over `NEXT_PUBLIC_SUPABASE_URL`).
 - `scripts/generate-keys.sh` generates all Supabase infrastructure secrets.
 - `scripts/crontab` dispatches notifications every 2 min via `wget`.
-- `volumes/` directory contains all Supabase Docker init scripts (from official repo).
+- `volumes/` directory contains Supabase Docker init scripts (from official repo).
 - App migrations auto-mount into DB container's init directory on first start.
 - On-demand migration runner: `docker compose run --rm migrate`.
-- GoTrue configured with 90-day sessions, 12-hour OTP expiry, refresh token rotation, custom email templates.
-- `.env.production.example` documents every required secret with generation instructions.
+- GoTrue configured with 90-day sessions, 12-hour OTP expiry, refresh token rotation, and custom email templates.
+- `.env.production.example` documents all required secrets with generation instructions.
 
 ### Previous (2026-02-09)
 
@@ -552,7 +561,7 @@ everybody.bike/
 ├── supabase/
 │   ├── config.toml              # Local dev config (auth, SMTP, rate limits)
 │   ├── templates/               # Custom email templates (invite, magic_link)
-│   ├── migrations/              # 7 migration files (initial + incremental)
+│   ├── migrations/              # 9 migration files (initial + incremental)
 │   └── seed.sql                 # Dev seed data
 ├── volumes/                     # Supabase Docker init scripts (from official repo)
 │   ├── api/kong.yml             # Kong API gateway routing config
@@ -596,7 +605,7 @@ everybody.bike/
 - **Secrets management**: VAPID keys, Supabase service role key, and JWT secrets stored as environment variables, never committed.
   - In dev, the service role key can be read from `supabase status` (the CLI may label it as "Secret").
   - The bootstrap script falls back to `supabase status --output json` when `SERVICE_ROLE_KEY` is not set.
-- **Rate limiting**: Applied to auth endpoints and push subscription creation.
+- **Rate limiting**: Applied across GoTrue, Kong, and app endpoints (including passkey, invite, and push subscription paths).
 - **Data privacy**: Minor rider data treated as sensitive. Minimal data collection. No analytics tracking of children. CSV uploads are processed server-side and not persisted after import.
 
 ---
@@ -641,12 +650,12 @@ npm run format
 
 ### Phase 1 — Foundation
 - [x] Project scaffolding (Next.js 16, Tailwind v4, shadcn/ui, TypeScript).
-- [x] Database schema and migrations (5 migration files).
+- [x] Database schema and migrations (9 migration files).
 - [x] Auth flow (magic link + passkey/WebAuthn).
 - [x] Invite onboarding flow (confirm name, optional passkey, add minor riders).
 - [x] Long-lived session configuration (90+ day refresh token).
 - [x] Basic layout and navigation with rugged theme.
-- [x] Production Dockerfile (multi-stage, Node 20 Alpine).
+- [x] Production Dockerfile (multi-stage, Node 22 Alpine).
 
 ### Phase 2 — Core Features
 - [x] Event CRUD (with recurring event support, series edit/delete).
@@ -679,6 +688,9 @@ npm run format
 - [x] Cron service for notification dispatch.
 - [x] Internal Docker routing (`SUPABASE_URL` for server-side).
 - [x] App migrations auto-applied on first DB init.
+- [x] Security hardening migration + app-layer hardening pass (auth, RLS, validation, headers).
+- [x] Multi-layer rate limiting (GoTrue, Kong, and app route handlers).
+- [x] Migration tracking moved to private `_migrations` schema with RLS.
 - [ ] Cloudflare Tunnel service added to Docker Compose.
 - [ ] Comprehensive test suite (unit, integration, e2e).
 - [ ] Offline support and sync (queued RSVPs).
@@ -688,22 +700,14 @@ npm run format
 
 ---
 
-## Recent Updates (Feb 9, 2026)
+## Open Issues (as of 2026-02-11)
 
-- Codebase audit: updated CLAUDE.md to match actual tech stack (Next.js 16, Tailwind v4, Zod v4).
-- Added production Dockerfile (multi-stage Node 20 Alpine build with standalone output).
-- Added security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
-- Added root error boundary (`error.tsx`) for graceful error recovery.
-- Configured long-lived Supabase sessions (90-day refresh token via `config.toml`).
-- Events list now splits Upcoming vs Past, with past events visually muted.
-- Admin RSVP overrides and clears are blocked for past events (UI + API guard).
-- Event dashboard now shows RSVP lists for events without groups (no-group fallback).
-- Passkey WebAuthn now derives RP ID/origin from request headers for tunnels; env can override.
-- Added passkey management: name on registration, list/rename/remove in Profile, and API endpoints.
-- Passkey credentials store bytea public keys correctly; login updates `last_used_at`.
-- Added dev-only overwrite toggle for passkey registration (`NEXT_PUBLIC_WEBAUTHN_ALLOW_OVERWRITE_DEV`).
-- Configured Supabase Auth SMTP for Mailgun; email sending still blocked pending Mailgun domain verification/allowed sender domain.
-- Added per-user calendar feed (ICS) with RSVP status, secured by a rotatable token, plus Profile UI to copy/subscribe/rotate.
+- Cloudflare Tunnel service is still not represented as a first-class service in `docker-compose.yml`.
+- Service worker offline cache and offline-first UX are still incomplete (`app shell + recent data + RSVP queue/sync`).
+- Test coverage goals are not yet fully met (unit/integration/e2e + migration/RLS test depth).
+- CI/CD pipeline is still pending.
+- SMTP provider setup remains partially blocked by Mailgun domain/sender verification.
+- Formal Lighthouse performance pass and follow-up optimizations are still pending.
 
 ---
 
