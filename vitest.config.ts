@@ -5,7 +5,11 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: "jsdom",
+    environment: "node",
+    environmentMatchGlobs: [
+      // Use jsdom for component/browser tests when added
+      ["src/components/**", "jsdom"],
+    ],
     globals: true,
     setupFiles: [],
   },
