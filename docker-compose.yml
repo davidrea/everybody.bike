@@ -89,6 +89,38 @@ services:
       retries: 3
 
   # ==========================================================================
+  # Deployer — Auto-deploy on new commits (opt-in)
+  #
+  # Polls the main branch and runs scripts/deploy.sh when changes appear.
+  # Activate with: docker compose --profile deploy up -d
+  #
+  # Requires DEPLOY_HOST_DIR to be set to the absolute path of this repo
+  # on the host, so that volume mounts in docker-compose.yml resolve
+  # correctly when docker compose runs inside the container.
+  # ==========================================================================
+
+  deployer:
+    profiles: [deploy]
+    container_name: everybody-bike-deployer
+    image: docker:27-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DEPLOY_HOST_DIR:-.}:${DEPLOY_HOST_DIR:-/repo}
+    working_dir: ${DEPLOY_HOST_DIR:-/repo}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        apk add --no-cache git curl >/dev/null 2>&1
+        git config --global --add safe.directory '*'
+        exec sh scripts/deploy-watch.sh
+    environment:
+      DEPLOY_BRANCH: ${DEPLOY_BRANCH:-main}
+      DEPLOY_INTERVAL: ${DEPLOY_INTERVAL:-60}
+      APP_PORT: ${APP_PORT:-3000}
+    restart: unless-stopped
+
+  # ==========================================================================
   # Cron — Notification dispatch (every 2 minutes)
   # ==========================================================================
 

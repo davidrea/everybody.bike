@@ -1,0 +1,32 @@
+# /etc/systemd/system/everybody-bike-deploy.service
+#
+# Watches the main branch and auto-deploys on new commits.
+#
+# Install:
+#   sudo cp scripts/everybody-bike-deploy.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now everybody-bike-deploy
+#
+# Logs:
+#   journalctl -u everybody-bike-deploy -f
+#
+[Unit]
+Description=everybody.bike auto-deploy watcher
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/user/everybody.bike
+Environment=DEPLOY_BRANCH=main
+Environment=DEPLOY_INTERVAL=60
+ExecStart=/home/user/everybody.bike/scripts/deploy-watch.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

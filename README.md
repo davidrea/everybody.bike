@@ -151,7 +151,7 @@ Add a `cloudflared` service to your `docker-compose.yml` (or run it separately) 
 
 Set `CLOUDFLARE_TUNNEL_TOKEN` in your `.env`.
 
-### Updating
+### Updating (Manual)
 
 ```bash
 git pull
@@ -160,6 +160,69 @@ docker compose up -d app
 
 # If there are new database migrations:
 docker compose run --rm migrate
+```
+
+### Automated Deployment
+
+The deploy script (`scripts/deploy.sh`) watches the `main` branch and
+automatically rebuilds and redeploys only what changed.  It:
+
+1. Fetches the latest commits from `origin/main`
+2. Diffs the changed files to decide what needs to happen
+3. **Runs `npm test` in a Docker container — deploy is aborted if any test fails**
+4. Rebuilds the app image only if source/config changed
+5. Runs database migrations only if new migration files appeared
+6. Restarts Kong, Auth, or Cron only if their config files changed
+7. Runs a health check against the app after restart
+
+#### Option A: Systemd service (recommended)
+
+The simplest approach for a VPS.  Polls every 60 seconds, logs to journald.
+
+```bash
+# Install the service
+sudo cp scripts/everybody-bike-deploy.service /etc/systemd/system/
+
+# Edit WorkingDirectory / User if your repo isn't at /home/user/everybody.bike
+sudo systemctl daemon-reload
+sudo systemctl enable --now everybody-bike-deploy
+
+# Watch the logs
+journalctl -u everybody-bike-deploy -f
+```
+
+#### Option B: Cron (one-liner)
+
+```bash
+# Add to root's crontab (crontab -e):
+* * * * * /home/user/everybody.bike/scripts/deploy.sh >> /var/log/everybody-bike-deploy.log 2>&1
+```
+
+#### Option C: Docker Compose service
+
+Keeps everything inside Docker Compose.  Requires `DEPLOY_HOST_DIR` in `.env`
+(the absolute path to the repo on the host, so volume mounts resolve correctly
+when `docker compose` runs inside the container).
+
+```bash
+# Add to .env:
+DEPLOY_HOST_DIR=/home/user/everybody.bike
+
+# Start with the deploy profile:
+docker compose --profile deploy up -d
+```
+
+#### Manual / one-off deploys
+
+```bash
+# Deploy whatever is on main right now (skips if already up to date):
+./scripts/deploy.sh
+
+# Force a full rebuild + migrate regardless of what changed:
+./scripts/deploy.sh --force
+
+# See what would happen without doing it:
+./scripts/deploy.sh --dry-run
 ```
 
 ### Database Migrations

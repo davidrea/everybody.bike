@@ -5,7 +5,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 
-# --- Stage 2: Build the application ---
+# --- Stage 2: Test (used by deploy script, skipped in normal builds) ---
+FROM deps AS test
+WORKDIR /app
+COPY . .
+
+# --- Stage 3: Build the application ---
 FROM node:22-alpine AS builder
 WORKDIR /app
 
@@ -26,7 +31,7 @@ ENV NEXT_PUBLIC_WEBAUTHN_RP_NAME=$NEXT_PUBLIC_WEBAUTHN_RP_NAME
 
 RUN npm run build
 
-# --- Stage 3: Production image ---
+# --- Stage 4: Production image ---
 FROM node:22-alpine AS runner
 WORKDIR /app
 
