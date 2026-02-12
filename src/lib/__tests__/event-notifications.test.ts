@@ -25,22 +25,23 @@ describe("getAnnouncementScheduleTime", () => {
   });
 
   it("schedules next morning at 9am when after 9pm cutoff", () => {
-    // 10pm on a Tuesday
-    const now = new Date("2026-03-10T22:00:00Z");
-    const startsAt = new Date("2026-03-15T10:00:00Z");
+    // 10pm local time on a Tuesday
+    const now = new Date(2026, 2, 10, 22, 0, 0, 0);
+    const startsAt = new Date(2026, 2, 15, 10, 0, 0, 0);
 
     const result = getAnnouncementScheduleTime(now, startsAt);
     expect(result).not.toBeNull();
 
-    // Should be next day at 9am
+    // Should be next day at 9am local time
     expect(result!.getHours()).toBe(9);
     expect(result!.getMinutes()).toBe(0);
     expect(result!.getDate()).toBe(now.getDate() + 1);
   });
 
   it("schedules next morning when exactly at 9pm", () => {
-    const now = new Date("2026-03-10T21:00:00Z");
-    const startsAt = new Date("2026-03-15T10:00:00Z");
+    // Exactly 9pm local time
+    const now = new Date(2026, 2, 10, 21, 0, 0, 0);
+    const startsAt = new Date(2026, 2, 15, 10, 0, 0, 0);
 
     const result = getAnnouncementScheduleTime(now, startsAt);
     expect(result).not.toBeNull();
