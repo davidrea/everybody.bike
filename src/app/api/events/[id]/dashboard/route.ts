@@ -58,8 +58,8 @@ export async function GET(
     const selfRsvpUserIds = Array.from(selfRsvpMap.keys());
     const riderRsvpIds = Array.from(riderRsvpMap.keys());
 
-    // Fetch profiles and minor riders in parallel
-    const [selfProfilesResult, minorRidersResult] = await Promise.all([
+    // Fetch RSVP'd profiles, minor riders, and all RM candidates in parallel
+    const [selfProfilesResult, minorRidersResult, allRmResult] = await Promise.all([
       selfRsvpUserIds.length
         ? supabase
             .from("profiles")
@@ -74,18 +74,16 @@ export async function GET(
             .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
             .in("id", riderRsvpIds)
         : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; group_id: string | null; medical_notes: string | null; media_opt_out: boolean }[] }),
+      supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, medical_alerts, media_opt_out, roles, rider_group_id")
+        .overlaps("roles", ["roll_model", "admin", "super_admin"]),
     ]);
 
     const selfProfiles = selfProfilesResult.data ?? [];
     const minorRiders = minorRidersResult.data ?? [];
 
-    const rollModelCandidates =
-      selfProfiles.filter(
-        (p) =>
-          p.roles?.includes("roll_model") ||
-          p.roles?.includes("admin") ||
-          p.roles?.includes("super_admin"),
-      ) ?? [];
+    const rollModelCandidates = (allRmResult.data ?? []) as typeof selfProfiles;
 
     const adultRiders =
       selfProfiles.filter((p) => p.roles?.includes("rider")) ?? [];
@@ -149,7 +147,9 @@ export async function GET(
       })
       .filter((rm): rm is ReturnType<typeof buildRollModelWithAssignment> => rm !== null);
 
-    const rmNotResponded: ReturnType<typeof buildRollModelWithAssignment>[] = [];
+    const rmNotResponded = rollModelCandidates
+      .filter((rm) => !selfRsvpMap.has(rm.id))
+      .map((rm) => buildRollModelWithAssignment(rm, null));
 
     const rmConfirmedUnassigned = rmConfirmed.filter(
       (rm) => rm.assigned_group_id === null,
@@ -268,14 +268,12 @@ export async function GET(
     });
   }
 
-  // Phase 2: Roll models, minor riders, adult riders in parallel (all need groupIds)
-  const [rmGroupResult, minorRidersResult, adultRidersResult] = await Promise.all([
+  // Phase 2: All roll models, minor riders, adult riders in parallel
+  const [allRmResult, minorRidersResult, adultRidersResult] = await Promise.all([
     supabase
-      .from("roll_model_groups")
-      .select(
-        "roll_model_id, profiles:roll_model_id(id, full_name, avatar_url, medical_alerts, media_opt_out)",
-      )
-      .in("group_id", groupIds),
+      .from("profiles")
+      .select("id, full_name, avatar_url, medical_alerts, media_opt_out")
+      .overlaps("roles", ["roll_model", "admin", "super_admin"]),
     supabase
       .from("riders")
       .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
@@ -287,35 +285,13 @@ export async function GET(
       .contains("roles", ["rider"]),
   ]);
 
-  // Deduplicate roll models (may coach multiple event groups)
-  const rmGroupRows = (rmGroupResult.data as unknown as {
-    roll_model_id: string;
-    profiles: {
-      id: string;
-      full_name: string;
-      avatar_url: string | null;
-      medical_alerts: string | null;
-      media_opt_out: boolean;
-    } | null;
-  }[]) ?? [];
-
-  const rmMap = new Map<
-    string,
-    {
-      id: string;
-      full_name: string;
-      avatar_url: string | null;
-      medical_alerts: string | null;
-      media_opt_out: boolean;
-    }
-  >();
-  rmGroupRows.forEach((row) => {
-    const rm = row.profiles;
-    if (rm && !rmMap.has(rm.id)) {
-      rmMap.set(rm.id, rm);
-    }
-  });
-  const allRollModels = Array.from(rmMap.values());
+  const allRollModels = (allRmResult.data ?? []) as {
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+    medical_alerts: string | null;
+    media_opt_out: boolean;
+  }[];
 
   const minorRiders = (minorRidersResult.data as {
     id: string;

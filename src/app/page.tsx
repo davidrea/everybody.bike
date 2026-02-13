@@ -1,19 +1,60 @@
 "use client";
 
+import { useMemo } from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { Calendar, Users, Bell, ArrowRight } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Bell,
+  ArrowRight,
+  Bike,
+  GraduationCap,
+  PartyPopper,
+  HelpCircle,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUpcomingEvents } from "@/hooks/use-events";
 import { useAuth } from "@/hooks/use-auth";
 import { EventCard } from "@/components/events/event-card";
+import type { EventWithGroups } from "@/types";
 import Link from "next/link";
+
+const eventTypeLabels: Record<string, string> = {
+  ride: "Ride",
+  clinic: "Clinic",
+  social: "Social",
+  meeting: "Meeting",
+  other: "Event",
+};
+
+const eventTypeIcons: Record<string, React.ElementType> = {
+  ride: Bike,
+  clinic: GraduationCap,
+  social: PartyPopper,
+  meeting: Users,
+  other: HelpCircle,
+};
+
+function findTodayEvent(events: EventWithGroups[] | undefined): EventWithGroups | undefined {
+  if (!events?.length) return undefined;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+  return events.find((e) => {
+    const s = new Date(e.starts_at);
+    return s.getFullYear() === y && s.getMonth() === m && s.getDate() === d;
+  });
+}
 
 export default function DashboardPage() {
   const { profile, loading: authLoading, isAdmin, hasRole } = useAuth();
   const { data: upcomingEvents, isLoading: eventsLoading } =
     useUpcomingEvents(5);
+
+  const todayEvent = useMemo(() => findTodayEvent(upcomingEvents), [upcomingEvents]);
 
   const isLoading = authLoading || eventsLoading;
 
@@ -87,6 +128,18 @@ export default function DashboardPage() {
               <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="space-y-2">
+              {todayEvent && (() => {
+                const TodayIcon = eventTypeIcons[todayEvent.type] ?? HelpCircle;
+                const label = eventTypeLabels[todayEvent.type] ?? "Event";
+                return (
+                  <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                    <Link href={`/events/${todayEvent.id}`}>
+                      <TodayIcon className="mr-2 h-4 w-4" />
+                      Today&apos;s {label}
+                    </Link>
+                  </Button>
+                );
+              })()}
               {isAdmin() && (
                 <Button variant="outline" size="sm" className="w-full justify-start" asChild>
                   <Link href="/events/new">

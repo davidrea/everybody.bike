@@ -5,6 +5,28 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { EventWithGroups } from "@/types";
 import type { EventFormValues } from "@/lib/validators";
 
+/**
+ * Convert a datetime-local string (e.g. "2026-02-15T14:00") to UTC ISO-8601.
+ * datetime-local inputs omit timezone info; new Date() in the browser interprets
+ * them as local time, and .toISOString() converts to UTC. This ensures the server
+ * always receives unambiguous UTC timestamps regardless of the user's timezone.
+ */
+function toUTCISO(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toISOString();
+}
+
+/** Normalize event datetime fields from local datetime-local to UTC ISO. */
+function withUTCDates(values: EventFormValues): EventFormValues {
+  return {
+    ...values,
+    starts_at: toUTCISO(values.starts_at) ?? values.starts_at,
+    ends_at: toUTCISO(values.ends_at),
+    rsvp_deadline: toUTCISO(values.rsvp_deadline),
+  };
+}
+
 interface EventFilters {
   group_id?: string;
   type?: string;
@@ -68,7 +90,7 @@ export function useCreateEvent() {
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(withUTCDates(values)),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -98,7 +120,7 @@ export function useUpdateEvent() {
       const res = await fetch(`/api/events/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, edit_mode: editMode }),
+        body: JSON.stringify({ ...withUTCDates(values), edit_mode: editMode }),
       });
       if (!res.ok) {
         const err = await res.json();
