@@ -40,8 +40,13 @@ const eventTypeIcons: Record<string, React.ElementType> = {
 function findTodayEvent(events: EventWithGroups[] | undefined): EventWithGroups | undefined {
   if (!events?.length) return undefined;
   const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  return events.find((e) => e.starts_at.slice(0, 10) === todayStr);
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+  return events.find((e) => {
+    const s = new Date(e.starts_at);
+    return s.getFullYear() === y && s.getMonth() === m && s.getDate() === d;
+  });
 }
 
 export default function DashboardPage() {
