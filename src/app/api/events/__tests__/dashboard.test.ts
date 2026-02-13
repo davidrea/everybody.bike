@@ -28,6 +28,7 @@ function mockQuery(data: unknown, error: unknown = null) {
   obj.eq = vi.fn().mockReturnValue(obj);
   obj.in = vi.fn().mockReturnValue(obj);
   obj.contains = vi.fn().mockReturnValue(obj);
+  obj.overlaps = vi.fn().mockReturnValue(obj);
   obj.single = vi.fn().mockResolvedValue(result);
   obj.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
     Promise.resolve(result).then(resolve, reject);
@@ -134,19 +135,15 @@ describe("GET /api/events/[id]/dashboard", () => {
     /**
      * Wire up the mock Supabase client for a Phase 2 scenario.
      *
-     * `from("profiles")` is potentially called twice in Phase 2:
-     *   1. Adult riders query (.contains("roles", ["rider"]))
-     *   2. Supplemental roll-model query (only when there are self-RSVPed
-     *      users not already in roll_model_groups)
-     *
-     * The counter distinguishes between the two calls.
+     * `from("profiles")` is called twice in Phase 2:
+     *   1. All RM/admin/super_admin profiles (.overlaps query)
+     *   2. Adult riders (.contains("roles", ["rider"]))
      */
     function setupPhase2({
       rsvps = [] as ReturnType<typeof makeRsvp>[],
-      rmGroupProfiles = [] as { roll_model_id: string; profiles: unknown }[],
+      allRmProfiles = [] as ReturnType<typeof makeProfile>[],
       minorRiders = [] as unknown[],
       adultRiders = [] as unknown[],
-      additionalProfiles = [] as unknown[],
     } = {}) {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: "u-admin" } },
@@ -161,37 +158,21 @@ describe("GET /api/events/[id]/dashboard", () => {
         if (table === "rsvps") {
           return mockQuery(rsvps);
         }
-        if (table === "roll_model_groups") {
-          return mockQuery(rmGroupProfiles);
-        }
         if (table === "riders") {
           return mockQuery(minorRiders);
         }
         if (table === "profiles") {
           profilesCallCount++;
-          // First call: adult riders; second call: supplemental RM profiles
+          // First call: all RM profiles; second call: adult riders
           return profilesCallCount === 1
-            ? mockQuery(adultRiders)
-            : mockQuery(additionalProfiles);
+            ? mockQuery(allRmProfiles)
+            : mockQuery(adultRiders);
         }
         return mockQuery([]);
       });
     }
 
-    function rmGroupRow(profile: ReturnType<typeof makeProfile>) {
-      return {
-        roll_model_id: profile.id,
-        profiles: {
-          id: profile.id,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          medical_alerts: profile.medical_alerts,
-          media_opt_out: profile.media_opt_out,
-        },
-      };
-    }
-
-    it("shows roll model from roll_model_groups who RSVPed yes", async () => {
+    it("shows roll model who RSVPed yes", async () => {
       const rm = makeProfile("rm-1", "Coach Alice");
       setupPhase2({
         rsvps: [
@@ -199,7 +180,7 @@ describe("GET /api/events/[id]/dashboard", () => {
             assigned_group_id: GROUP_1.id,
           }),
         ],
-        rmGroupProfiles: [rmGroupRow(rm)],
+        allRmProfiles: [rm],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -216,37 +197,50 @@ describe("GET /api/events/[id]/dashboard", () => {
       expect(body.counts.confirmed_roll_models).toBe(1);
     });
 
-    it("includes roll model who RSVPed but is NOT in roll_model_groups (bug fix)", async () => {
-      // Core regression test for the bug: user RSVPed before getting the
-      // roll_model role added and/or before being assigned to the event's
-      // groups via roll_model_groups.
-      const rm = makeProfile("rm-2", "Coach Bob");
+    it("shows roll model with no RSVP as not_responded", async () => {
+      const rm = makeProfile("rm-1", "Coach Alice");
       setupPhase2({
-        rsvps: [makeRsvp(eventId, "rm-2", "yes")],
-        rmGroupProfiles: [], // NOT in roll_model_groups
-        additionalProfiles: [rm],
+        rsvps: [],
+        allRmProfiles: [rm],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
-      expect(res.status).toBe(200);
-
       const body = await res.json();
-      expect(body.roll_models.confirmed).toHaveLength(1);
-      expect(body.roll_models.confirmed[0]).toMatchObject({
-        id: "rm-2",
-        full_name: "Coach Bob",
-        assigned_group_id: null,
+
+      expect(body.roll_models.not_responded).toHaveLength(1);
+      expect(body.roll_models.not_responded[0]).toMatchObject({
+        id: "rm-1",
+        full_name: "Coach Alice",
       });
       expect(body.counts.total_roll_models).toBe(1);
-      expect(body.counts.confirmed_roll_models).toBe(1);
+      expect(body.counts.confirmed_roll_models).toBe(0);
     });
 
-    it("includes admin who RSVPed but is NOT in roll_model_groups", async () => {
+    it("shows newly-added roll model on existing event as not_responded", async () => {
+      // Key regression test: a user gets the roll_model role added after
+      // the event was created — they should appear as not_responded.
+      const existingRm = makeProfile("rm-1", "Coach Alice");
+      const newRm = makeProfile("rm-2", "Coach Bob");
+      setupPhase2({
+        rsvps: [makeRsvp(eventId, "rm-1", "yes", { assigned_group_id: GROUP_1.id })],
+        allRmProfiles: [existingRm, newRm],
+      });
+
+      const res = await GET(dummyReq, makeParams(eventId));
+      const body = await res.json();
+
+      expect(body.roll_models.confirmed).toHaveLength(1);
+      expect(body.roll_models.confirmed[0].id).toBe("rm-1");
+      expect(body.roll_models.not_responded).toHaveLength(1);
+      expect(body.roll_models.not_responded[0].id).toBe("rm-2");
+      expect(body.counts.total_roll_models).toBe(2);
+    });
+
+    it("includes admin in roll model list", async () => {
       const admin = makeProfile("admin-1", "Admin Carol", ["admin"]);
       setupPhase2({
         rsvps: [makeRsvp(eventId, "admin-1", "yes")],
-        rmGroupProfiles: [],
-        additionalProfiles: [admin],
+        allRmProfiles: [admin],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -259,12 +253,11 @@ describe("GET /api/events/[id]/dashboard", () => {
       });
     });
 
-    it("includes super_admin who RSVPed but is NOT in roll_model_groups", async () => {
+    it("includes super_admin in roll model list", async () => {
       const sa = makeProfile("sa-1", "Super Admin Eve", ["super_admin"]);
       setupPhase2({
         rsvps: [makeRsvp(eventId, "sa-1", "maybe")],
-        rmGroupProfiles: [],
-        additionalProfiles: [sa],
+        allRmProfiles: [sa],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -274,12 +267,12 @@ describe("GET /api/events/[id]/dashboard", () => {
       expect(body.roll_models.maybe[0].id).toBe("sa-1");
     });
 
-    it("does NOT include parent-only user who RSVPed in roll models", async () => {
-      const parent = makeProfile("parent-1", "Parent Dave", ["parent"]);
+    it("does NOT include parent-only user in roll models", async () => {
+      // Parent-only users are excluded by the overlaps query, so
+      // allRmProfiles should not contain them.
       setupPhase2({
         rsvps: [makeRsvp(eventId, "parent-1", "yes")],
-        rmGroupProfiles: [],
-        additionalProfiles: [parent],
+        allRmProfiles: [], // parent not returned by overlaps query
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -287,51 +280,6 @@ describe("GET /api/events/[id]/dashboard", () => {
 
       expect(body.roll_models.confirmed).toHaveLength(0);
       expect(body.counts.total_roll_models).toBe(0);
-    });
-
-    it("does not duplicate roll models already in roll_model_groups", async () => {
-      const rm = makeProfile("rm-1", "Coach Alice");
-      setupPhase2({
-        rsvps: [
-          makeRsvp(eventId, "rm-1", "yes", {
-            assigned_group_id: GROUP_1.id,
-          }),
-        ],
-        rmGroupProfiles: [rmGroupRow(rm)],
-        // rm-1 is already in rmMap so supplemental query skips them
-      });
-
-      const res = await GET(dummyReq, makeParams(eventId));
-      const body = await res.json();
-
-      expect(body.roll_models.confirmed).toHaveLength(1);
-      expect(body.counts.total_roll_models).toBe(1);
-    });
-
-    it("combines roll models from roll_model_groups AND supplemental query", async () => {
-      const rmInGroup = makeProfile("rm-1", "Coach Alice");
-      const rmNotInGroup = makeProfile("rm-2", "Coach Bob");
-
-      setupPhase2({
-        rsvps: [
-          makeRsvp(eventId, "rm-1", "yes", {
-            assigned_group_id: GROUP_1.id,
-          }),
-          makeRsvp(eventId, "rm-2", "maybe"),
-        ],
-        rmGroupProfiles: [rmGroupRow(rmInGroup)],
-        additionalProfiles: [rmNotInGroup],
-      });
-
-      const res = await GET(dummyReq, makeParams(eventId));
-      const body = await res.json();
-
-      expect(body.roll_models.confirmed).toHaveLength(1);
-      expect(body.roll_models.confirmed[0].id).toBe("rm-1");
-      expect(body.roll_models.maybe).toHaveLength(1);
-      expect(body.roll_models.maybe[0].id).toBe("rm-2");
-      expect(body.counts.total_roll_models).toBe(2);
-      expect(body.counts.confirmed_roll_models).toBe(1);
     });
 
     it("categorises roll model RSVP statuses correctly", async () => {
@@ -349,8 +297,7 @@ describe("GET /api/events/[id]/dashboard", () => {
           makeRsvp(eventId, "rm-3", "no"),
           // rm-4 has NOT RSVPed
         ],
-        rmGroupProfiles: [rmGroupRow(rm1), rmGroupRow(rm4)],
-        additionalProfiles: [rm2, rm3],
+        allRmProfiles: [rm1, rm2, rm3, rm4],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -375,8 +322,7 @@ describe("GET /api/events/[id]/dashboard", () => {
       const rm = makeProfile("rm-2", "Coach Bob");
       setupPhase2({
         rsvps: [makeRsvp(eventId, "rm-2", "yes")], // no assigned_group_id
-        rmGroupProfiles: [],
-        additionalProfiles: [rm],
+        allRmProfiles: [rm],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -394,15 +340,26 @@ describe("GET /api/events/[id]/dashboard", () => {
   describe("Phase 1 — event without groups", () => {
     const eventId = "evt-2";
 
+    /**
+     * Wire up the mock Supabase client for a Phase 1 scenario (no groups).
+     *
+     * `from("profiles")` is called 1 or 2 times:
+     *   1. (If RSVPs exist) RSVP'd user profiles
+     *   2. All RM/admin/super_admin profiles (.overlaps query) — always called
+     */
     function setupPhase1({
       rsvps = [] as ReturnType<typeof makeRsvp>[],
       selfProfiles = [] as unknown[],
+      allRmProfiles = [] as ReturnType<typeof makeProfile>[],
       minorRiders = [] as unknown[],
       groups = [] as unknown[],
     } = {}) {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: { id: "u-admin" } },
       });
+
+      const hasSelfRsvps = rsvps.some((r) => !r.rider_id);
+      let profilesCallCount = 0;
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === "events") {
@@ -412,7 +369,13 @@ describe("GET /api/events/[id]/dashboard", () => {
           return mockQuery(rsvps);
         }
         if (table === "profiles") {
-          return mockQuery(selfProfiles);
+          profilesCallCount++;
+          // When there are self-RSVPs, first call returns RSVP'd profiles,
+          // second returns all RM profiles. Otherwise only RM profiles.
+          if (hasSelfRsvps && profilesCallCount === 1) {
+            return mockQuery(selfProfiles);
+          }
+          return mockQuery(allRmProfiles);
         }
         if (table === "riders") {
           return mockQuery(minorRiders);
@@ -429,6 +392,7 @@ describe("GET /api/events/[id]/dashboard", () => {
       setupPhase1({
         rsvps: [makeRsvp(eventId, "rm-1", "yes")],
         selfProfiles: [rm],
+        allRmProfiles: [rm],
       });
 
       const res = await GET(dummyReq, makeParams(eventId));
@@ -442,8 +406,26 @@ describe("GET /api/events/[id]/dashboard", () => {
       expect(body.counts.total_roll_models).toBe(1);
     });
 
-    it("returns empty lists when there are no RSVPs", async () => {
-      setupPhase1({ rsvps: [] });
+    it("shows roll model with no RSVP as not_responded", async () => {
+      const rm = makeProfile("rm-1", "Coach Alice");
+      setupPhase1({
+        rsvps: [],
+        allRmProfiles: [rm],
+      });
+
+      const res = await GET(dummyReq, makeParams(eventId));
+      const body = await res.json();
+
+      expect(body.roll_models.not_responded).toHaveLength(1);
+      expect(body.roll_models.not_responded[0]).toMatchObject({
+        id: "rm-1",
+        full_name: "Coach Alice",
+      });
+      expect(body.counts.total_roll_models).toBe(1);
+    });
+
+    it("returns empty lists when there are no RSVPs and no roll models", async () => {
+      setupPhase1({ rsvps: [], allRmProfiles: [] });
 
       const res = await GET(dummyReq, makeParams(eventId));
       const body = await res.json();
@@ -468,6 +450,7 @@ describe("GET /api/events/[id]/dashboard", () => {
           makeRsvp(eventId, "rider-1", "yes"),
         ],
         selfProfiles: [rm, rider],
+        allRmProfiles: [rm],
         groups: [{ id: "g-1", name: "Trail Blazers", color: "#123456" }],
       });
 
