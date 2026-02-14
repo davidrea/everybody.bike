@@ -5,17 +5,9 @@ import { eventCancellationSchema } from "@/lib/validators";
 import { sendWebPushNotification } from "@/lib/push-server";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/url";
+import { renderBrandedEmail } from "@/lib/email-template";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function chunk<T>(items: T[], size: number) {
   const chunks: T[][] = [];
@@ -305,6 +297,7 @@ export async function POST(
   } else {
     const baseUrl = getBaseUrl(request);
     const eventUrl = `${baseUrl}${url}`;
+    const notificationsUrl = `${baseUrl}/notifications`;
     const emails = await getEmails(admin, recipients);
 
     for (const userId of recipients) {
@@ -315,11 +308,23 @@ export async function POST(
       }
 
       try {
+        const message = renderBrandedEmail({
+          title,
+          preheader: bodyText,
+          body: bodyText,
+          actionLabel: "View event details",
+          actionUrl: eventUrl,
+          reason: {
+            type: "subscription",
+            manageUrl: notificationsUrl,
+          },
+          siteUrl: baseUrl,
+        });
         await sendEmail({
           to: email,
           subject: title,
-          text: `${bodyText}\n\n${eventUrl}`,
-          html: `<p>${escapeHtml(bodyText)}</p><p><a href="${escapeHtml(eventUrl)}">View event details</a></p>`,
+          text: message.text,
+          html: message.html,
         });
         emailSent += 1;
       } catch {

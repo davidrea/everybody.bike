@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWebPushNotification } from "@/lib/push-server";
 import { sendEmail, isEmailConfigured } from "@/lib/email";
 import { getBaseUrl } from "@/lib/url";
+import { renderBrandedEmail } from "@/lib/email-template";
 import { timingSafeEqual } from "crypto";
 
 const MAX_BATCH = 25;
@@ -281,15 +282,6 @@ function resolveUrl(baseUrl: string, url: string | null) {
   return `${baseUrl}/${url}`;
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function isSafeHttpUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -393,6 +385,7 @@ export async function POST(request: Request) {
       } else {
         const baseUrl = getBaseUrl(request);
         const resolvedUrl = notification.url ? resolveUrl(baseUrl, notification.url) : "";
+        const notificationsUrl = `${baseUrl}/notifications`;
         const emails = await getProfileEmails(admin, fallbackUsers);
         for (const userId of fallbackUsers) {
           const email = emails.get(userId);
@@ -401,20 +394,24 @@ export async function POST(request: Request) {
             continue;
           }
           try {
-            const text = `${notification.body}${
-              resolvedUrl ? `\n\n${resolvedUrl}` : ""
-            }`;
             const safeUrl = isSafeHttpUrl(resolvedUrl) ? resolvedUrl : "";
-            const html = `<p>${escapeHtml(notification.body)}</p>${
-              safeUrl
-                ? `<p><a href="${escapeHtml(safeUrl)}">View details</a></p>`
-                : ""
-            }`;
+            const message = renderBrandedEmail({
+              title: notification.title,
+              preheader: notification.body,
+              body: notification.body,
+              actionLabel: safeUrl ? "View details" : undefined,
+              actionUrl: safeUrl || undefined,
+              reason: {
+                type: "subscription",
+                manageUrl: notificationsUrl,
+              },
+              siteUrl: baseUrl,
+            });
             await sendEmail({
               to: email,
               subject: notification.title,
-              text,
-              html,
+              text: message.text,
+              html: message.html,
             });
             emailSent += 1;
           } catch {

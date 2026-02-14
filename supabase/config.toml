@@ -244,6 +244,10 @@ content_path = "./supabase/templates/invite.html"
 subject = "Your magic link for everybody.bike"
 content_path = "./supabase/templates/magic_link.html"
 
+[auth.email.template.confirmation]
+subject = "Your magic link for everybody.bike"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true
