@@ -210,8 +210,8 @@ services:
         condition: service_healthy
       analytics:
         condition: service_healthy
-    volumes:
-      - ./supabase/templates:/templates:ro
+      email-templates:
+        condition: service_started
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -253,11 +253,11 @@ services:
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
       GOTRUE_MAILER_EXTERNAL_HOSTS: ${API_EXTERNAL_HOSTS:-api.everybody.bike,everybody.bike}
       # Custom email templates
-      GOTRUE_MAILER_TEMPLATES_INVITE: /templates/invite.html
-      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: /templates/magic_link.html
-      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: /templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_INVITE: http://email-templates/invite.html
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://email-templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://email-templates/magic_link.html
       # Compatibility aliases across GoTrue releases
-      GOTRUE_MAILER_TEMPLATES_MAGICLINK: /templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_MAGICLINK: http://email-templates/magic_link.html
       # Phone auth (disabled)
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: "false"
@@ -273,6 +273,17 @@ services:
       # Minimum time between resending confirmation/reset emails (seconds)
       GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
       GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: "false"
+
+  # ==========================================================================
+  # Email Templates (internal static host for GoTrue template fetch)
+  # ==========================================================================
+
+  email-templates:
+    container_name: everybody-bike-email-templates
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./supabase/templates:/usr/share/nginx/html:ro
 
   # ==========================================================================
   # Supabase — REST API (PostgREST)
