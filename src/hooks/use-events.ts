@@ -70,7 +70,7 @@ export function useEvent(id: string | undefined) {
   });
 }
 
-export function useUpcomingEvents(limit = 5) {
+export function useUpcomingEvents(limit?: number) {
   // Stabilize `from` to the start of the current minute so the query key
   // doesn't change on every render (which would cause an infinite loop).
   const from = useMemo(() => {

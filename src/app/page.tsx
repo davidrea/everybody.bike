@@ -52,7 +52,7 @@ function findTodayEvent(events: EventWithGroups[] | undefined): EventWithGroups 
 export default function DashboardPage() {
   const { profile, loading: authLoading, isAdmin, hasRole } = useAuth();
   const { data: upcomingEvents, isLoading: eventsLoading } =
-    useUpcomingEvents(5);
+    useUpcomingEvents();
 
   const todayEvent = useMemo(() => findTodayEvent(upcomingEvents), [upcomingEvents]);
 
@@ -190,7 +190,7 @@ export default function DashboardPage() {
             </div>
           ) : upcomingEvents && upcomingEvents.length > 0 ? (
             <div className="space-y-3">
-              {upcomingEvents.map((event) => (
+              {upcomingEvents.slice(0, 5).map((event) => (
                 <EventCard key={event.id} event={event} />
               ))}
             </div>
