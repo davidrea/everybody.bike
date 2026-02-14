@@ -21,10 +21,11 @@ export function NotificationPreferences() {
   const permissionLabel = useMemo(() => {
     if (!push.supported) return "Unsupported";
     if (push.permission === "unsupported") return "Unsupported";
-    if (push.permission === "granted") return "Enabled";
     if (push.permission === "denied") return "Blocked";
+    if (push.subscription) return "Enabled";
+    if (push.permission === "granted") return "Not enabled";
     return "Not enabled";
-  }, [push.permission, push.supported]);
+  }, [push.permission, push.subscription, push.supported]);
 
   const subscriptionLabel = useMemo(() => {
     if (!push.supported) return "This device does not support push notifications.";
@@ -64,12 +65,14 @@ export function NotificationPreferences() {
           )}
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => push.enable().catch(() => undefined)}
-              disabled={!push.supported || push.permission === "denied" || push.isLoading}
-            >
-              {push.isLoading ? "Working..." : "Enable Notifications"}
-            </Button>
+            {!push.subscription && (
+              <Button
+                onClick={() => push.enable().catch(() => undefined)}
+                disabled={!push.supported || push.permission === "denied" || push.isLoading}
+              >
+                {push.isLoading ? "Working..." : "Enable Notifications"}
+              </Button>
+            )}
             {push.subscription && (
               <Button
                 variant="outline"
