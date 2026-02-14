@@ -253,11 +253,11 @@ services:
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
       GOTRUE_MAILER_EXTERNAL_HOSTS: ${API_EXTERNAL_HOSTS:-api.everybody.bike,everybody.bike}
       # Custom email templates
-      GOTRUE_MAILER_TEMPLATES_INVITE: file:///templates/invite.html
-      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: file:///templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_INVITE: /templates/invite.html
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: /templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: /templates/magic_link.html
       # Compatibility aliases across GoTrue releases
-      GOTRUE_MAILER_TEMPLATES_MAGICLINK: file:///templates/magic_link.html
-      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: file:///templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_MAGICLINK: /templates/magic_link.html
       # Phone auth (disabled)
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
       GOTRUE_SMS_AUTOCONFIRM: "false"
