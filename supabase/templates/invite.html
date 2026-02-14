@@ -32,7 +32,7 @@
                   <tr>
                     <td bgcolor="#ea580c" style="border-radius:8px;">
                       <a
-                        href="{{ if .ActionURL }}{{ .ActionURL }}{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite{{ end }}"
+                        href="{{ .ConfirmationURL }}"
                         style="display:inline-block;padding:12px 18px;font-size:14px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;"
                       >
                         Accept invite
@@ -46,12 +46,14 @@
               <td style="padding:0 20px 0 20px;">
                 <p style="margin:0 0 10px 0;font-size:12px;line-height:18px;color:#57534e;word-break:break-word;overflow-wrap:anywhere;">
                   This link expires in 12 hours.
-                  {{ if .Data.auth_email_expires_at }}Expires at {{ .Data.auth_email_expires_at }} UTC.{{ end }}
                 </p>
                 <p style="margin:0;font-size:12px;line-height:18px;color:#57534e;word-break:break-word;overflow-wrap:anywhere;">
                   If the button doesn’t work, copy and paste this link into your browser:
                   <br>
-                  <span style="word-break:break-all;">{{ if .ActionURL }}{{ .ActionURL }}{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite{{ end }}</span>
+                  <span style="word-break:break-all;">{{ .ConfirmationURL }}</span>
+                </p>
+                <p style="margin:10px 0 0 0;font-size:12px;line-height:18px;color:#57534e;word-break:break-word;overflow-wrap:anywhere;">
+                  Alternative code: <strong>{{ .Token }}</strong>
                 </p>
               </td>
             </tr>

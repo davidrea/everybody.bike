@@ -251,6 +251,7 @@ services:
       GOTRUE_MAILER_URLPATHS_INVITE: "/auth/v1/verify"
       GOTRUE_MAILER_URLPATHS_RECOVERY: "/auth/v1/verify"
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
+      GOTRUE_MAILER_EXTERNAL_HOSTS: ${API_EXTERNAL_HOSTS:-api.everybody.bike,everybody.bike}
       # Custom email templates
       GOTRUE_MAILER_TEMPLATES_INVITE: file:///templates/invite.html
       GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: file:///templates/magic_link.html
