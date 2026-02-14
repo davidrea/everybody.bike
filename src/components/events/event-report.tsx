@@ -152,6 +152,9 @@ export function EventReport({ eventId }: { eventId: string }) {
   const { event, riders_by_group: groups } = dashboard;
   const unassigned = dashboard.roll_models.confirmed_unassigned;
   const notResponded = dashboard.roll_models.not_responded;
+  const declinedUnassigned = dashboard.roll_models.no.filter(
+    (rm) => !rm.assigned_group_id,
+  );
   const eventGroups = event.event_groups?.map((eg) => eg.groups).filter(Boolean) ?? [];
 
   return (
@@ -176,17 +179,23 @@ export function EventReport({ eventId }: { eventId: string }) {
         className="print:hidden"
       />
 
-      {(unassigned.length > 0 || notResponded.length > 0) && (
+      {(unassigned.length > 0 || declinedUnassigned.length > 0 || notResponded.length > 0) && (
         <section className="rounded-xl border bg-white p-4 shadow-sm print:hidden">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Roll Model Coverage
           </h2>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2">
+          <div className="mt-3 grid gap-3 md:grid-cols-3 print:grid-cols-3">
             <CoachColumn
               label="Confirmed Unassigned"
               items={unassigned}
               badgeClass="text-amber-700"
               borderClass="border-l-amber-600"
+            />
+            <CoachColumn
+              label="Declined"
+              items={declinedUnassigned}
+              badgeClass="text-red-700"
+              borderClass="border-l-red-600"
             />
             <CoachColumn
               label="No Response"
