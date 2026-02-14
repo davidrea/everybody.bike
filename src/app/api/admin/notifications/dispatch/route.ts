@@ -293,6 +293,7 @@ function isSafeHttpUrl(url: string): boolean {
 export async function POST(request: Request) {
   const secret = process.env.NOTIFICATION_DISPATCH_SECRET;
   if (!secret) {
+    console.error("[dispatch] NOTIFICATION_DISPATCH_SECRET is not configured");
     return NextResponse.json(
       { error: "NOTIFICATION_DISPATCH_SECRET is not configured" },
       { status: 500 },
@@ -306,6 +307,7 @@ export async function POST(request: Request) {
     authHeader.length !== expected.length ||
     !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
   ) {
+    console.warn("[dispatch] Unauthorized request");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -325,6 +327,7 @@ export async function POST(request: Request) {
   }
 
   if (!scheduled || scheduled.length === 0) {
+    console.log("[dispatch] No pending notifications");
     return NextResponse.json({ processed: 0 });
   }
 
@@ -418,7 +421,7 @@ export async function POST(request: Request) {
       .eq("id", notification.id);
   }
 
-  return NextResponse.json({
+  const result = {
     processed: scheduled.length,
     sent: sentCount,
     failed: failedCount,
@@ -426,5 +429,9 @@ export async function POST(request: Request) {
     email_sent: emailSent,
     email_failed: emailFailed,
     email_skipped: emailSkipped,
-  });
+  };
+
+  console.log(`[dispatch] Processed ${result.processed} notification(s): ${result.sent} push sent, ${result.failed} push failed, ${result.email_sent} email sent, ${result.email_failed} email failed, ${result.email_skipped} email skipped, ${result.removed_subscriptions} stale subscriptions removed`);
+
+  return NextResponse.json(result);
 }

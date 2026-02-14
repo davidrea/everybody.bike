@@ -102,8 +102,8 @@ services:
     environment:
       NOTIFICATION_DISPATCH_SECRET: ${NOTIFICATION_DISPATCH_SECRET}
     volumes:
-      - ./scripts/crontab:/etc/crontabs/root:ro
-    command: ["crond", "-f", "-l", "2"]
+      - ./scripts/cron-entrypoint.sh:/cron-entrypoint.sh:ro
+    command: ["/cron-entrypoint.sh"]
 
   # ==========================================================================
   # Database Migrations (on-demand)
