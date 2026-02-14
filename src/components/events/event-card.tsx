@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EventTypeBadge } from "./event-type-badge";
 import { cn } from "@/lib/utils";
 import type { EventWithGroups } from "@/types";
+import { Badge } from "@/components/ui/badge";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -30,6 +31,7 @@ export function EventCard({
   const date = formatDate(event.starts_at);
   const groups = event.event_groups?.map((eg) => eg.groups) ?? [];
   const isPast = variant === "past";
+  const isCanceled = !!event.canceled_at;
 
   return (
     <Link href={`/events/${event.id}`}>
@@ -56,7 +58,10 @@ export function EventCard({
               <h3 className="font-heading text-lg font-semibold leading-tight">
                 {event.title}
               </h3>
-              <EventTypeBadge type={event.type} />
+              <div className="flex items-center gap-2">
+                {isCanceled && <Badge variant="destructive">Canceled</Badge>}
+                <EventTypeBadge type={event.type} />
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">

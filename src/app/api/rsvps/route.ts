@@ -97,12 +97,19 @@ export async function POST(request: Request) {
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, rsvp_deadline, starts_at, event_groups(group_id)")
+    .select("id, rsvp_deadline, starts_at, canceled_at, event_groups(group_id)")
     .eq("id", event_id)
     .single();
 
   if (!event) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+
+  if (event.canceled_at) {
+    return NextResponse.json(
+      { error: "This event is canceled. RSVP changes are disabled." },
+      { status: 400 },
+    );
   }
 
   const eventGroupIds = new Set(
@@ -293,6 +300,23 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "event_id is required" }, { status: 400 });
   }
 
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, starts_at, canceled_at")
+    .eq("id", event_id)
+    .single();
+
+  if (!event) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+
+  if (event.canceled_at) {
+    return NextResponse.json(
+      { error: "This event is canceled. RSVP changes are disabled." },
+      { status: 400 },
+    );
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("roles")
@@ -311,16 +335,6 @@ export async function DELETE(request: Request) {
   }
 
   if (on_behalf_of) {
-    const { data: event } = await supabase
-      .from("events")
-      .select("starts_at")
-      .eq("id", event_id)
-      .single();
-
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    }
-
     if (new Date() > new Date(event.starts_at)) {
       return NextResponse.json(
         { error: "Admin RSVP changes are disabled for past events" },

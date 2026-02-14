@@ -136,6 +136,9 @@ export type Database = {
           weather_notes: string | null;
           recurrence_rule: string | null;
           series_id: string | null;
+          canceled_at: string | null;
+          canceled_reason: string | null;
+          canceled_by: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -154,6 +157,9 @@ export type Database = {
           weather_notes?: string | null;
           recurrence_rule?: string | null;
           series_id?: string | null;
+          canceled_at?: string | null;
+          canceled_reason?: string | null;
+          canceled_by?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -172,6 +178,9 @@ export type Database = {
           weather_notes?: string | null;
           recurrence_rule?: string | null;
           series_id?: string | null;
+          canceled_at?: string | null;
+          canceled_reason?: string | null;
+          canceled_by?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;

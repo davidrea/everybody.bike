@@ -39,6 +39,14 @@ export const eventSchema = z.object({
 
 export type EventFormValues = z.infer<typeof eventSchema>;
 
+export const eventCancellationSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, "Cancellation reason is required")
+    .max(1000, "Cancellation reason is too long"),
+});
+
 // ─── RSVP ──────────────────────────────────────────────────────
 
 // Loose UUID pattern — accepts any 8-4-4-4-12 hex string regardless of

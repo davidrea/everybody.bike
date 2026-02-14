@@ -160,3 +160,28 @@ export function useDeleteEvent() {
     },
   });
 }
+
+export function useCancelEvent() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const res = await fetch(`/api/events/${id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to cancel event");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["events", "list"] });
+      qc.invalidateQueries({ queryKey: ["events", "detail", vars.id] });
+      qc.invalidateQueries({ queryKey: ["event-dashboard", vars.id] });
+      qc.invalidateQueries({ queryKey: ["rsvps", vars.id] });
+    },
+  });
+}

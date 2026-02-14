@@ -73,6 +73,14 @@ async function getGroupAudience(admin: ReturnType<typeof createAdminClient>, gro
   return Array.from(ids);
 }
 
+async function getAdminAudience(admin: ReturnType<typeof createAdminClient>) {
+  const { data } = await admin
+    .from("profiles")
+    .select("id")
+    .or("roles.cs.{admin},roles.cs.{super_admin}");
+  return new Set((data ?? []).map((row) => row.id));
+}
+
 async function getEventGroupIds(admin: ReturnType<typeof createAdminClient>, eventId: string) {
   const { data } = await admin
     .from("event_groups")
@@ -133,12 +141,13 @@ async function getEventAudience(
   eventId: string,
 ) {
   const groupIds = await getEventGroupIds(admin, eventId);
-  if (groupIds.length === 0) return [];
+  const admins = await getAdminAudience(admin);
+  if (groupIds.length === 0) return Array.from(admins);
 
   const adultAudience = await getGroupAdultAudience(admin, groupIds);
   const parentAudience = await getGroupParents(admin, groupIds);
 
-  return Array.from(new Set([...adultAudience, ...parentAudience]));
+  return Array.from(new Set([...adultAudience, ...parentAudience, ...admins]));
 }
 
 async function getTargetUsers(

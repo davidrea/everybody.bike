@@ -148,6 +148,14 @@ export function RsvpControls({ eventId, event }: RsvpControlsProps) {
 
   if (!profile) return null;
 
+  if (event.canceled_at) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        This event is canceled. RSVP changes are disabled.
+      </p>
+    );
+  }
+
   if (isPastDeadline) {
     return (
       <p className="text-sm text-muted-foreground">

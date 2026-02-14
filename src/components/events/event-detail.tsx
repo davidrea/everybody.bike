@@ -14,10 +14,11 @@ import {
   CloudSun,
   CalendarClock,
   Printer,
+  CircleX,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { useEvent, useDeleteEvent } from "@/hooks/use-events";
+import { useEvent, useDeleteEvent, useCancelEvent } from "@/hooks/use-events";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,16 @@ import { RsvpControls } from "@/components/rsvp/rsvp-controls";
 import { EventDashboard } from "./event-dashboard";
 import { humanizeRRule } from "@/lib/recurrence";
 import { EventNotificationSchedule } from "./event-notification-schedule";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
@@ -47,8 +58,11 @@ export function EventDetail({ eventId }: { eventId: string }) {
   const { data: event, isLoading } = useEvent(eventId);
   const { isAdmin } = useAuth();
   const deleteEvent = useDeleteEvent();
+  const cancelEvent = useCancelEvent();
   const router = useRouter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   async function handleDelete(mode: "single" | "series") {
     try {
@@ -65,6 +79,24 @@ export function EventDetail({ eventId }: { eventId: string }) {
   const groups = event?.event_groups?.map((eg) => eg.groups).filter(Boolean) ?? [];
   const admin = isAdmin();
   const isRecurring = !!event?.recurrence_rule;
+  const isCanceled = !!event?.canceled_at;
+
+  async function handleCancelEvent() {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error("Please enter a cancellation reason");
+      return;
+    }
+
+    try {
+      await cancelEvent.mutateAsync({ id: eventId, reason });
+      setShowCancelDialog(false);
+      setCancelReason("");
+      toast.success("Event canceled and notifications sent");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel event");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -111,6 +143,16 @@ export function EventDetail({ eventId }: { eventId: string }) {
                       Edit
                     </Link>
                   </Button>
+                  {!isCanceled && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowCancelDialog(true)}
+                    >
+                      <CircleX className="mr-1 h-4 w-4" />
+                      Cancel Event
+                    </Button>
+                  )}
                   <Button
                     variant="destructive"
                     size="sm"
@@ -133,6 +175,19 @@ export function EventDetail({ eventId }: { eventId: string }) {
           {/* Event info */}
           <Card>
             <CardContent className="space-y-4 pt-6">
+              {isCanceled && (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+                  <p className="text-sm font-semibold text-destructive">
+                    Event Canceled
+                  </p>
+                  {event.canceled_reason && (
+                    <p className="mt-1 whitespace-pre-wrap text-sm">
+                      {event.canceled_reason}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4 text-muted-foreground" />
@@ -240,14 +295,27 @@ export function EventDetail({ eventId }: { eventId: string }) {
           </Card>
 
           {/* RSVP Controls */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">RSVP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RsvpControls eventId={eventId} event={event} />
-            </CardContent>
-          </Card>
+          {isCanceled ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">RSVP</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  This event is canceled. RSVP changes are disabled.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">RSVP</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RsvpControls eventId={eventId} event={event} />
+              </CardContent>
+            </Card>
+          )}
 
           {admin && <EventNotificationSchedule event={event} />}
 
@@ -261,6 +329,47 @@ export function EventDetail({ eventId }: { eventId: string }) {
               onSeries={() => handleDelete("series")}
             />
           )}
+
+          <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Cancel Event</DialogTitle>
+                <DialogDescription>
+                  This will mark the event canceled and send push and email notifications to the event audience.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="cancel_reason">Cancellation reason</Label>
+                <Textarea
+                  id="cancel_reason"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Example: Trails are closed due to heavy rain."
+                  rows={4}
+                  maxLength={1000}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCancelDialog(false)}
+                >
+                  Keep Event
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    void handleCancelEvent();
+                  }}
+                  disabled={cancelEvent.isPending}
+                >
+                  Confirm Cancel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
 
