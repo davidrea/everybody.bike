@@ -65,6 +65,8 @@ export function EventForm({ event, onSubmit, isPending }: EventFormProps) {
       capacity: event?.capacity ?? "",
       weather_notes: event?.weather_notes ?? "",
       group_ids: existingGroupIds,
+      send_announcement_notification: true,
+      send_default_reminder_notifications: true,
       is_recurring: !!event?.recurrence_rule,
       recurrence_rule: event?.recurrence_rule ?? "",
     },
@@ -288,6 +290,58 @@ export function EventForm({ event, onSubmit, isPending }: EventFormProps) {
         />
 
         {/* Recurrence (only for new events) */}
+        {!event && (
+          <div className="space-y-4 rounded-lg border p-4">
+            <h3 className="font-medium">Default notifications</h3>
+
+            <FormField
+              control={form.control}
+              name="send_announcement_notification"
+              render={({ field }) => (
+                <FormItem className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-1">
+                    <FormLabel className="text-sm font-medium">
+                      Send immediate announcement
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Queue a new event announcement right after this event is created.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="send_default_reminder_notifications"
+              render={({ field }) => (
+                <FormItem className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="space-y-1">
+                    <FormLabel className="text-sm font-medium">
+                      Send default reminders
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Queue the default reminder cadence for this event.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
         {!event && (
           <div className="space-y-4 rounded-lg border p-4">
             <div className="flex items-center gap-2">

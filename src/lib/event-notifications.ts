@@ -8,6 +8,11 @@ export const DEFAULT_REMINDER_OFFSETS = [
   { label: "1 day", ms: 24 * 60 * 60 * 1000 },
 ];
 
+export type EventNotificationDefaults = {
+  sendAnnouncement: boolean;
+  sendReminders: boolean;
+};
+
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
     weekday: "short",
@@ -60,6 +65,21 @@ export function getDefaultReminderTimes(startsAt: Date, now: Date): Date[] {
     reminders.push(candidate);
   }
   return reminders;
+}
+
+export function getDefaultEventNotificationTimes(
+  startsAt: Date,
+  now: Date,
+  defaults: EventNotificationDefaults,
+): { announcementTime: Date | null; reminderTimes: Date[] } {
+  return {
+    announcementTime: defaults.sendAnnouncement
+      ? getAnnouncementScheduleTime(now, startsAt)
+      : null,
+    reminderTimes: defaults.sendReminders
+      ? getDefaultReminderTimes(startsAt, now)
+      : [],
+  };
 }
 
 export function buildEventNotificationContent(event: {

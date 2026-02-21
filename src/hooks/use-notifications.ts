@@ -41,9 +41,10 @@ export function useUpdateNotificationPreferences() {
   });
 }
 
-export function useScheduledNotifications() {
+export function useScheduledNotifications(enabled = true) {
   return useQuery({
     queryKey: ["notifications", "scheduled"],
+    enabled,
     queryFn: async (): Promise<ScheduledNotification[]> => {
       const res = await fetch("/api/admin/notifications");
       if (!res.ok) throw new Error("Failed to load scheduled notifications");
