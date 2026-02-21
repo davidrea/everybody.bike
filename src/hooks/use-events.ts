@@ -100,6 +100,7 @@ export function useCreateEvent() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events", "list"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "scheduled"] });
     },
   });
 }
@@ -157,6 +158,7 @@ export function useDeleteEvent() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events", "list"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "scheduled"] });
     },
   });
 }
@@ -182,6 +184,7 @@ export function useCancelEvent() {
       qc.invalidateQueries({ queryKey: ["events", "detail", vars.id] });
       qc.invalidateQueries({ queryKey: ["event-dashboard", vars.id] });
       qc.invalidateQueries({ queryKey: ["rsvps", vars.id] });
+      qc.invalidateQueries({ queryKey: ["notifications", "scheduled"] });
     },
   });
 }
