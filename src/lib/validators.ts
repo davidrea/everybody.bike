@@ -33,6 +33,8 @@ export const eventSchema = z.object({
   capacity: z.coerce.number().int().positive().optional().or(z.literal("")),
   weather_notes: z.string().max(500).optional().or(z.literal("")),
   group_ids: z.array(z.string().uuid()).default([]),
+  send_announcement_notification: z.boolean().default(true),
+  send_default_reminder_notifications: z.boolean().default(true),
   is_recurring: z.boolean(),
   recurrence_rule: z.string().optional().or(z.literal("")),
 });

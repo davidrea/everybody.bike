@@ -5,8 +5,7 @@ import { generateOccurrences } from "@/lib/recurrence";
 import crypto from "crypto";
 import {
   buildEventNotificationContent,
-  getAnnouncementScheduleTime,
-  getDefaultReminderTimes,
+  getDefaultEventNotificationTimes,
 } from "@/lib/event-notifications";
 
 type EventScheduleInput = {
@@ -20,6 +19,7 @@ async function scheduleEventNotifications(
   supabase: Awaited<ReturnType<typeof createClient>>,
   events: EventScheduleInput[],
   createdBy: string,
+  defaults: { sendAnnouncement: boolean; sendReminders: boolean },
 ) {
   const now = new Date();
   const inserts: {
@@ -36,7 +36,12 @@ async function scheduleEventNotifications(
 
   for (const event of events) {
     const startsAt = new Date(event.starts_at);
-    const announcementTime = getAnnouncementScheduleTime(now, startsAt);
+    const { announcementTime, reminderTimes } = getDefaultEventNotificationTimes(
+      startsAt,
+      now,
+      defaults,
+    );
+
     if (announcementTime) {
       const content = buildEventNotificationContent(event, "announcement");
       inserts.push({
@@ -50,7 +55,6 @@ async function scheduleEventNotifications(
       });
     }
 
-    const reminderTimes = getDefaultReminderTimes(startsAt, now);
     for (const reminderTime of reminderTimes) {
       const content = buildEventNotificationContent(event, "reminder");
       inserts.push({
@@ -165,61 +169,138 @@ export async function POST(request: Request) {
       );
     }
 
-    const { group_ids, is_recurring, recurrence_rule, ...eventData } =
-      parsed.data;
+    const {
+      group_ids,
+      is_recurring,
+      recurrence_rule,
+      send_announcement_notification,
+      send_default_reminder_notifications,
+      ...eventData
+    } = parsed.data;
     const groupIds = Array.isArray(group_ids) ? group_ids : [];
+    const notificationDefaults = {
+      sendAnnouncement: send_announcement_notification,
+      sendReminders: send_default_reminder_notifications,
+    };
 
-  if (is_recurring && recurrence_rule) {
-    // Create recurring event series
-    const seriesId = crypto.randomUUID();
-    const startDate = new Date(eventData.starts_at);
-    const occurrences = generateOccurrences(recurrence_rule, startDate);
+    if (is_recurring && recurrence_rule) {
+      // Create recurring event series
+      const seriesId = crypto.randomUUID();
+      const startDate = new Date(eventData.starts_at);
+      const occurrences = generateOccurrences(recurrence_rule, startDate);
 
-    // Calculate duration if ends_at is set
-    const duration =
-      eventData.ends_at
-        ? new Date(eventData.ends_at).getTime() - startDate.getTime()
-        : null;
+      // Calculate duration if ends_at is set
+      const duration =
+        eventData.ends_at
+          ? new Date(eventData.ends_at).getTime() - startDate.getTime()
+          : null;
 
-    const events = occurrences.map((date) => ({
-      title: eventData.title,
-      type: eventData.type,
-      description: eventData.description || null,
-      location: eventData.location || null,
-      map_url: eventData.map_url || null,
-      starts_at: date.toISOString(),
-      ends_at: duration
-        ? new Date(date.getTime() + duration).toISOString()
-        : null,
-      rsvp_deadline: eventData.rsvp_deadline || null,
-      capacity:
-        eventData.capacity !== "" && eventData.capacity !== undefined
-          ? Number(eventData.capacity)
+      const events = occurrences.map((date) => ({
+        title: eventData.title,
+        type: eventData.type,
+        description: eventData.description || null,
+        location: eventData.location || null,
+        map_url: eventData.map_url || null,
+        starts_at: date.toISOString(),
+        ends_at: duration
+          ? new Date(date.getTime() + duration).toISOString()
           : null,
-      weather_notes: eventData.weather_notes || null,
-      recurrence_rule: recurrence_rule,
-      series_id: seriesId,
-      created_by: user.id,
-    }));
+        rsvp_deadline: eventData.rsvp_deadline || null,
+        capacity:
+          eventData.capacity !== "" && eventData.capacity !== undefined
+            ? Number(eventData.capacity)
+            : null,
+        weather_notes: eventData.weather_notes || null,
+        recurrence_rule: recurrence_rule,
+        series_id: seriesId,
+        created_by: user.id,
+      }));
 
-    const { data: created, error } = await supabase
+      const { data: created, error } = await supabase
+        .from("events")
+        .insert(events)
+        .select();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (groupIds.length > 0) {
+        // Create event_groups for each event
+        const eventGroupRows = created.flatMap((evt) =>
+          groupIds.map((gid) => ({ event_id: evt.id, group_id: gid })),
+        );
+
+        const { error: egError } = await supabase
+          .from("event_groups")
+          .insert(eventGroupRows);
+
+        if (egError) {
+          return NextResponse.json({ error: egError.message }, { status: 500 });
+        }
+      }
+
+      try {
+        await scheduleEventNotifications(
+          supabase,
+          created.map((evt) => ({
+            id: evt.id,
+            title: evt.title,
+            starts_at: evt.starts_at,
+            location: evt.location,
+          })),
+          user.id,
+          notificationDefaults,
+        );
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error:
+              err instanceof Error ? err.message : "Failed to schedule notifications",
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(
+        { count: created.length, series_id: seriesId },
+        { status: 201 },
+      );
+    }
+
+    // Single event
+    const { data: event, error } = await supabase
       .from("events")
-      .insert(events)
-      .select();
+      .insert({
+        title: eventData.title,
+        type: eventData.type,
+        description: eventData.description || null,
+        location: eventData.location || null,
+        map_url: eventData.map_url || null,
+        starts_at: eventData.starts_at,
+        ends_at: eventData.ends_at || null,
+        rsvp_deadline: eventData.rsvp_deadline || null,
+        capacity:
+          eventData.capacity !== "" && eventData.capacity !== undefined
+            ? Number(eventData.capacity)
+            : null,
+        weather_notes: eventData.weather_notes || null,
+        recurrence_rule: null,
+        series_id: null,
+        created_by: user.id,
+      })
+      .select()
+      .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     if (groupIds.length > 0) {
-      // Create event_groups for each event
-    const eventGroupRows = created.flatMap((evt) =>
-      groupIds.map((gid) => ({ event_id: evt.id, group_id: gid })),
-    );
-
+      // Create event_groups
       const { error: egError } = await supabase
         .from("event_groups")
-        .insert(eventGroupRows);
+        .insert(groupIds.map((gid) => ({ event_id: event.id, group_id: gid })));
 
       if (egError) {
         return NextResponse.json({ error: egError.message }, { status: 500 });
@@ -229,85 +310,26 @@ export async function POST(request: Request) {
     try {
       await scheduleEventNotifications(
         supabase,
-        created.map((evt) => ({
-          id: evt.id,
-          title: evt.title,
-          starts_at: evt.starts_at,
-          location: evt.location,
-        })),
+        [
+          {
+            id: event.id,
+            title: event.title,
+            starts_at: event.starts_at,
+            location: event.location,
+          },
+        ],
         user.id,
+        notificationDefaults,
       );
     } catch (err) {
       return NextResponse.json(
-        { error: err instanceof Error ? err.message : "Failed to schedule notifications" },
+        {
+          error:
+            err instanceof Error ? err.message : "Failed to schedule notifications",
+        },
         { status: 500 },
       );
     }
-
-    return NextResponse.json(
-      { count: created.length, series_id: seriesId },
-      { status: 201 },
-    );
-  }
-
-  // Single event
-  const { data: event, error } = await supabase
-    .from("events")
-    .insert({
-      title: eventData.title,
-      type: eventData.type,
-      description: eventData.description || null,
-      location: eventData.location || null,
-      map_url: eventData.map_url || null,
-      starts_at: eventData.starts_at,
-      ends_at: eventData.ends_at || null,
-      rsvp_deadline: eventData.rsvp_deadline || null,
-      capacity:
-        eventData.capacity !== "" && eventData.capacity !== undefined
-          ? Number(eventData.capacity)
-          : null,
-      weather_notes: eventData.weather_notes || null,
-      recurrence_rule: null,
-      series_id: null,
-      created_by: user.id,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  if (groupIds.length > 0) {
-    // Create event_groups
-    const { error: egError } = await supabase
-      .from("event_groups")
-      .insert(groupIds.map((gid) => ({ event_id: event.id, group_id: gid })));
-
-    if (egError) {
-      return NextResponse.json({ error: egError.message }, { status: 500 });
-    }
-  }
-
-  try {
-    await scheduleEventNotifications(
-      supabase,
-      [
-        {
-          id: event.id,
-          title: event.title,
-          starts_at: event.starts_at,
-          location: event.location,
-        },
-      ],
-      user.id,
-    );
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to schedule notifications" },
-      { status: 500 },
-    );
-  }
 
     return NextResponse.json(event, { status: 201 });
   } catch (err) {

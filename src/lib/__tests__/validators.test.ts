@@ -205,6 +205,21 @@ describe("eventSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.group_ids).toEqual([]);
+      expect(result.data.send_announcement_notification).toBe(true);
+      expect(result.data.send_default_reminder_notifications).toBe(true);
+    }
+  });
+
+  it("accepts disabling default event notifications", () => {
+    const result = eventSchema.safeParse({
+      ...validEvent,
+      send_announcement_notification: false,
+      send_default_reminder_notifications: false,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.send_announcement_notification).toBe(false);
+      expect(result.data.send_default_reminder_notifications).toBe(false);
     }
   });
 

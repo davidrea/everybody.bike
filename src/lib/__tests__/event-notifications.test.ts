@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   getAnnouncementScheduleTime,
+  getDefaultEventNotificationTimes,
   getDefaultReminderTimes,
   buildEventNotificationContent,
   DEFAULT_REMINDER_OFFSETS,
@@ -137,6 +138,47 @@ describe("getDefaultReminderTimes", () => {
     expect(DEFAULT_REMINDER_OFFSETS[0].label).toBe("1 week");
     expect(DEFAULT_REMINDER_OFFSETS[1].label).toBe("3 days");
     expect(DEFAULT_REMINDER_OFFSETS[2].label).toBe("1 day");
+  });
+});
+
+describe("getDefaultEventNotificationTimes", () => {
+  it("returns announcement and reminders when both defaults are enabled", () => {
+    const now = new Date("2026-03-01T10:00:00Z");
+    const startsAt = new Date("2026-03-20T10:00:00Z");
+
+    const result = getDefaultEventNotificationTimes(startsAt, now, {
+      sendAnnouncement: true,
+      sendReminders: true,
+    });
+
+    expect(result.announcementTime).not.toBeNull();
+    expect(result.reminderTimes.length).toBeGreaterThan(0);
+  });
+
+  it("omits announcement when announcement default is disabled", () => {
+    const now = new Date("2026-03-01T10:00:00Z");
+    const startsAt = new Date("2026-03-20T10:00:00Z");
+
+    const result = getDefaultEventNotificationTimes(startsAt, now, {
+      sendAnnouncement: false,
+      sendReminders: true,
+    });
+
+    expect(result.announcementTime).toBeNull();
+    expect(result.reminderTimes.length).toBeGreaterThan(0);
+  });
+
+  it("omits reminders when reminder defaults are disabled", () => {
+    const now = new Date("2026-03-01T10:00:00Z");
+    const startsAt = new Date("2026-03-20T10:00:00Z");
+
+    const result = getDefaultEventNotificationTimes(startsAt, now, {
+      sendAnnouncement: true,
+      sendReminders: false,
+    });
+
+    expect(result.announcementTime).not.toBeNull();
+    expect(result.reminderTimes).toHaveLength(0);
   });
 });
 
