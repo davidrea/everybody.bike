@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useGroups } from "@/hooks/use-groups";
 import {
@@ -49,6 +49,7 @@ export function NotificationScheduler() {
   const { data: scheduled, isLoading } = useScheduledNotifications();
   const createNotification = useCreateScheduledNotification();
   const deleteNotification = useDeleteScheduledNotification();
+  const [showAllSent, setShowAllSent] = useState(false);
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -76,6 +77,44 @@ export function NotificationScheduler() {
     }
     return [];
   }, [events, groups, targetType]);
+
+  const pendingNotifications = useMemo(
+    () =>
+      (scheduled ?? [])
+        .filter((n) => !n.sent)
+        .sort(
+          (a, b) =>
+            new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime()
+        ),
+    [scheduled]
+  );
+
+  const sentNotifications = useMemo(
+    () =>
+      (scheduled ?? [])
+        .filter((n) => n.sent)
+        .sort(
+          (a, b) =>
+            new Date(b.scheduled_for).getTime() - new Date(a.scheduled_for).getTime()
+        ),
+    [scheduled]
+  );
+
+  const visibleSentNotifications = showAllSent
+    ? sentNotifications
+    : sentNotifications.slice(0, 10);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteNotification.mutateAsync(id);
+        toast.success("Notification deleted");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to delete notification");
+      }
+    },
+    [deleteNotification]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -109,15 +148,6 @@ export function NotificationScheduler() {
       setTargetId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to schedule notification");
-    }
-  }
-
-  async function handleDelete(id: string) {
-    try {
-      await deleteNotification.mutateAsync(id);
-      toast.success("Notification deleted");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete notification");
     }
   }
 
@@ -233,8 +263,8 @@ export function NotificationScheduler() {
                 <Skeleton key={i} className="h-12" />
               ))}
             </div>
-          ) : scheduled && scheduled.length > 0 ? (
-            scheduled.map((item) => (
+          ) : pendingNotifications.length > 0 ? (
+            pendingNotifications.map((item) => (
               <ScheduledNotificationRow
                 key={item.id}
                 notification={item}
@@ -245,7 +275,49 @@ export function NotificationScheduler() {
               />
             ))
           ) : (
-            <p className="text-sm text-muted-foreground">No scheduled notifications yet.</p>
+            <p className="text-sm text-muted-foreground">No pending notifications.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Sent Notifications</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12" />
+              ))}
+            </div>
+          ) : sentNotifications.length > 0 ? (
+            <>
+              {visibleSentNotifications.map((item) => (
+                <ScheduledNotificationRow
+                  key={item.id}
+                  notification={item}
+                  groups={groups ?? []}
+                  events={events ?? []}
+                  onDelete={handleDelete}
+                  isDeleting={deleteNotification.isPending}
+                />
+              ))}
+              {sentNotifications.length > 10 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowAllSent((prev) => !prev)}
+                >
+                  {showAllSent
+                    ? "Show less"
+                    : `Show all ${sentNotifications.length} sent notifications`}
+                </Button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">No sent notifications yet.</p>
           )}
         </CardContent>
       </Card>
