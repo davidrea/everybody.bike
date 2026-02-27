@@ -9,25 +9,20 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-async function fetchCalendarToken(): Promise<{ token: string }> {
-  const res = await fetch("/api/calendar/token");
-  if (!res.ok) throw new Error("Failed to load calendar token");
+async function fetchCalendarUrls(): Promise<{ url: string; webcal_url: string }> {
+  const res = await fetch("/api/calendar");
+  if (!res.ok) throw new Error("Failed to load calendar link");
   return res.json();
 }
 
-async function regenerateCalendarToken(): Promise<{ token: string }> {
-  const res = await fetch("/api/calendar/token", { method: "POST" });
-  if (!res.ok) throw new Error("Failed to regenerate token");
+async function regenerateCalendarUrls(): Promise<{ url: string; webcal_url: string }> {
+  const res = await fetch("/api/calendar", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to regenerate link");
   return res.json();
 }
 
-function buildUrls(token: string) {
-  const host =
-    typeof window !== "undefined" ? window.location.host : "everybody.bike";
-  const feedPath = `/api/calendar/${token}`;
-  const webcalUrl = `webcal://${host}${feedPath}`;
-  const googleCalUrl = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
-  return { webcalUrl, googleCalUrl };
+function buildGoogleCalUrl(webcalUrl: string) {
+  return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
 }
 
 export function CalendarFeedLinks() {
@@ -35,20 +30,21 @@ export function CalendarFeedLinks() {
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["calendar", "token"],
-    queryFn: fetchCalendarToken,
+    queryKey: ["calendar", "urls"],
+    queryFn: fetchCalendarUrls,
   });
 
   const regenerate = useMutation({
-    mutationFn: regenerateCalendarToken,
+    mutationFn: regenerateCalendarUrls,
     onSuccess: (newData) => {
-      qc.setQueryData(["calendar", "token"], newData);
+      qc.setQueryData(["calendar", "urls"], newData);
     },
   });
 
   if (isLoading || !data) return null;
 
-  const { webcalUrl, googleCalUrl } = buildUrls(data.token);
+  const webcalUrl = data.webcal_url;
+  const googleCalUrl = buildGoogleCalUrl(webcalUrl);
 
   const copyUrl = async () => {
     await navigator.clipboard.writeText(webcalUrl);

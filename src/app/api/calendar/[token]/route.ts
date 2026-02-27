@@ -120,7 +120,6 @@ export async function GET(
       "X-WR-CALDESC:Mountain bike club rides\\, clinics\\, and events",
     ),
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
   ];
 
   for (const event of events) {

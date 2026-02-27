@@ -63,6 +63,7 @@ export async function updateSession(request: NextRequest) {
     "/api/auth/passkey/login",
     "/api/auth/passkey/login/verify",
     "/api/admin/notifications/dispatch",
+    "/api/calendar/feed",
   ];
   const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 

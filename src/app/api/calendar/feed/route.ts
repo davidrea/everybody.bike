@@ -75,7 +75,7 @@ export async function GET(request: Request) {
   const defaultFrom = new Date(now);
   defaultFrom.setDate(defaultFrom.getDate() - 30);
   const defaultTo = new Date(now);
-  defaultTo.setMonth(defaultTo.getMonth() + 6);
+  defaultTo.setMonth(defaultTo.getMonth() + 12);
 
   const from = parseDate(searchParams.get("from")) ?? defaultFrom;
   const to = parseDate(searchParams.get("to")) ?? defaultTo;
@@ -190,9 +190,11 @@ export async function GET(request: Request) {
     "VERSION:2.0",
     "PRODID:-//everybody.bike//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "X-WR-CALNAME:Everybody Bike Events",
+    "X-WR-CALNAME:everybody.bike",
+    "X-WR-CALDESC:Mountain bike club rides\\, clinics\\, and events",
     "X-WR-TIMEZONE:UTC",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+    "X-PUBLISHED-TTL:PT1H",
   ];
 
   visibleEvents.forEach((event) => {
@@ -244,6 +246,8 @@ export async function GET(request: Request) {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${event.id}@everybody.bike`);
     lines.push(`DTSTAMP:${formatUtc(updatedAt)}`);
+    lines.push(`LAST-MODIFIED:${formatUtc(updatedAt)}`);
+    lines.push("SEQUENCE:0");
     lines.push(`DTSTART:${formatUtc(startsAt)}`);
     if (endsAt) {
       lines.push(`DTEND:${formatUtc(endsAt)}`);
@@ -262,7 +266,7 @@ export async function GET(request: Request) {
   return new Response(buildCalendar(lines), {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Cache-Control": "private, max-age=300",
+      "Cache-Control": "no-cache, no-store",
     },
   });
 }
