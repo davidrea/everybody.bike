@@ -115,18 +115,31 @@ export async function PUT(
     }
 
     if (seriesEvents && seriesEvents.length > 0) {
-      const { title, type, description, location, map_url, rsvp_deadline, capacity, weather_notes } = updatePayload;
+      const { title, type, description, location, map_url, capacity, weather_notes } = updatePayload;
 
-      // Extract just the time portion from the submitted starts_at
-      // (datetime-local format: "YYYY-MM-DDTHH:MM", no timezone info)
+      // Extract just the time portion from the submitted starts_at/ends_at.
       // This preserves each event's own date while applying the new time to all.
       const newStartTimePart = updatePayload.starts_at.split("T")[1] ?? "00:00";
       const newEndTimePart = updatePayload.ends_at
         ? updatePayload.ends_at.split("T")[1] ?? null
         : null;
 
+      // Calculate the rsvp_deadline offset relative to starts_at so each event
+      // keeps the same lead time (Option A: preserve exact minute-level offset).
+      const deadlineOffsetMs = updatePayload.rsvp_deadline
+        ? new Date(updatePayload.rsvp_deadline).getTime() -
+          new Date(updatePayload.starts_at).getTime()
+        : null;
+
       for (const seriesEvent of seriesEvents) {
         const datePart = seriesEvent.starts_at.split("T")[0];
+        const newStartsAt = `${datePart}T${newStartTimePart}`;
+
+        const newRsvpDeadline =
+          deadlineOffsetMs !== null
+            ? new Date(new Date(newStartsAt).getTime() + deadlineOffsetMs).toISOString()
+            : null;
+
         await supabase
           .from("events")
           .update({
@@ -135,10 +148,10 @@ export async function PUT(
             description,
             location,
             map_url,
-            rsvp_deadline,
+            rsvp_deadline: newRsvpDeadline,
             capacity,
             weather_notes,
-            starts_at: `${datePart}T${newStartTimePart}`,
+            starts_at: newStartsAt,
             ends_at: newEndTimePart ? `${datePart}T${newEndTimePart}` : null,
           })
           .eq("id", seriesEvent.id);

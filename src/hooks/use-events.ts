@@ -131,7 +131,12 @@ export function useUpdateEvent() {
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["events", "list"] });
-      qc.invalidateQueries({ queryKey: ["events", "detail", vars.id] });
+      if (vars.editMode === "series") {
+        // Series update affects multiple events — invalidate all detail caches
+        qc.invalidateQueries({ queryKey: ["events", "detail"] });
+      } else {
+        qc.invalidateQueries({ queryKey: ["events", "detail", vars.id] });
+      }
     },
   });
 }
