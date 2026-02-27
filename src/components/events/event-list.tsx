@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { EventCard } from "./event-card";
+import { CalendarFeedLinks } from "./calendar-feed-links";
 import { EVENT_TYPES } from "@/types";
 import { shouldShowOnDemandAnnouncement } from "./event-list-helpers";
 
@@ -135,11 +136,14 @@ export function EventList() {
       ) : (
         <div className="space-y-6">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-heading text-xl font-semibold">
-                Upcoming Events
-              </h2>
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h2 className="font-heading text-xl font-semibold">
+                  Upcoming Events
+                </h2>
+                <CalendarFeedLinks />
+              </div>
+              <span className="shrink-0 text-sm text-muted-foreground">
                 {upcomingEvents.length}
                 {upcomingEvents.length === 1 ? " event" : " events"}
               </span>
