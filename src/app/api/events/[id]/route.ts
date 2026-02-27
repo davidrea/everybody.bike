@@ -103,43 +103,50 @@ export async function PUT(
       );
     }
 
-    // Update all future events in the series (including this one)
-    // We exclude date-specific fields (starts_at, ends_at) for series updates
-    const { title, type, description, location, map_url, rsvp_deadline, capacity, weather_notes } = updatePayload;
-    const { error } = await supabase
+    // Fetch all future events in the series (need starts_at to preserve each event's date)
+    const { data: seriesEvents, error: fetchError } = await supabase
       .from("events")
-      .update({
-        title,
-        type,
-        description,
-        location,
-        map_url,
-        rsvp_deadline,
-        capacity,
-        weather_notes,
-      })
+      .select("id, starts_at")
       .eq("series_id", event.series_id)
       .gte("starts_at", event.starts_at);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
-    // Update event_groups for all future events in series
-    const { data: seriesEvents } = await supabase
-      .from("events")
-      .select("id")
-      .eq("series_id", event.series_id)
-      .gte("starts_at", event.starts_at);
+    if (seriesEvents && seriesEvents.length > 0) {
+      const { title, type, description, location, map_url, rsvp_deadline, capacity, weather_notes } = updatePayload;
 
-    if (seriesEvents) {
+      // Extract just the time portion from the submitted starts_at
+      // (datetime-local format: "YYYY-MM-DDTHH:MM", no timezone info)
+      // This preserves each event's own date while applying the new time to all.
+      const newStartTimePart = updatePayload.starts_at.split("T")[1] ?? "00:00";
+      const newEndTimePart = updatePayload.ends_at
+        ? updatePayload.ends_at.split("T")[1] ?? null
+        : null;
+
+      for (const seriesEvent of seriesEvents) {
+        const datePart = seriesEvent.starts_at.split("T")[0];
+        await supabase
+          .from("events")
+          .update({
+            title,
+            type,
+            description,
+            location,
+            map_url,
+            rsvp_deadline,
+            capacity,
+            weather_notes,
+            starts_at: `${datePart}T${newStartTimePart}`,
+            ends_at: newEndTimePart ? `${datePart}T${newEndTimePart}` : null,
+          })
+          .eq("id", seriesEvent.id);
+      }
+
+      // Update event_groups for all future events in series
       const eventIds = seriesEvents.map((e) => e.id);
-      // Delete existing event_groups
-      await supabase
-        .from("event_groups")
-        .delete()
-        .in("event_id", eventIds);
-      // Insert new ones
+      await supabase.from("event_groups").delete().in("event_id", eventIds);
       const newRows = eventIds.flatMap((eid) =>
         group_ids.map((gid) => ({ event_id: eid, group_id: gid })),
       );
