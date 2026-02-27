@@ -143,30 +143,32 @@ export function EventDetail({ eventId }: { eventId: string }) {
                       Edit
                     </Link>
                   </Button>
-                  {!isCanceled && (
+                  <div className="flex items-center gap-2">
+                    {!isCanceled && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setShowCancelDialog(true)}
+                      >
+                        <CircleX className="mr-1 h-4 w-4" />
+                        Cancel Event
+                      </Button>
+                    )}
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setShowCancelDialog(true)}
+                      onClick={() => {
+                        if (isRecurring) {
+                          setShowDeleteDialog(true);
+                        } else {
+                          handleDelete("single");
+                        }
+                      }}
                     >
-                      <CircleX className="mr-1 h-4 w-4" />
-                      Cancel Event
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      Delete
                     </Button>
-                  )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      if (isRecurring) {
-                        setShowDeleteDialog(true);
-                      } else {
-                        handleDelete("single");
-                      }
-                    }}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    Delete
-                  </Button>
+                  </div>
                 </div>
               )}
             </div>
