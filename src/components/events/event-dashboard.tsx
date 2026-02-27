@@ -25,6 +25,7 @@ import {
 import { DashboardRatioIndicator } from "./dashboard-ratio-indicator";
 import { DashboardGroupSection } from "./dashboard-group-section";
 import { ParentDashboard } from "./parent-dashboard";
+import { SafetyIndicators } from "@/components/safety/safety-indicators";
 import type { Group, RsvpStatus, DashboardRollModel } from "@/types";
 
 export function EventDashboard({ eventId }: { eventId: string }) {
@@ -212,6 +213,11 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                   ) : (
                     <Badge key={rm.id} className="bg-green-600 text-white">
                       {formatRollModelLabel(rm)}
+                      <SafetyIndicators
+                        medicalAlerts={rm.medical_alerts}
+                        mediaOptOut={rm.media_opt_out}
+                        iconClassName="h-3 w-3"
+                      />
                     </Badge>
                   ),
                 )}
@@ -234,6 +240,11 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                       className="border-amber-500 text-amber-700 dark:text-amber-400"
                     >
                       {formatRollModelLabel(rm)} (maybe)
+                      <SafetyIndicators
+                        medicalAlerts={rm.medical_alerts}
+                        mediaOptOut={rm.media_opt_out}
+                        iconClassName="h-3 w-3"
+                      />
                     </Badge>
                   ),
                 )}
@@ -252,6 +263,11 @@ export function EventDashboard({ eventId }: { eventId: string }) {
                   ) : (
                     <Badge key={rm.id} className="bg-red-600 text-white">
                       {formatRollModelLabel(rm)} (no)
+                      <SafetyIndicators
+                        medicalAlerts={rm.medical_alerts}
+                        mediaOptOut={rm.media_opt_out}
+                        iconClassName="h-3 w-3"
+                      />
                     </Badge>
                   ),
                 )}
@@ -434,6 +450,11 @@ function RollModelRsvpBadge({
           >
             {formatRollModelLabel(rollModel)}
             {variant === "maybe" ? " (maybe)" : ""}
+            <SafetyIndicators
+              medicalAlerts={rollModel.medical_alerts}
+              mediaOptOut={rollModel.media_opt_out}
+              iconClassName="h-3 w-3"
+            />
           </Badge>
         </button>
       </PopoverTrigger>
@@ -553,9 +574,14 @@ function StatusSection({
           ) : (
             <span
               key={rm.id}
-              className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-sm"
+              className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-sm"
             >
               {formatRollModelLabel(rm)}
+              <SafetyIndicators
+                medicalAlerts={rm.medical_alerts}
+                mediaOptOut={rm.media_opt_out}
+                iconClassName="h-3.5 w-3.5"
+              />
             </span>
           ),
         )}
