@@ -9,12 +9,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { SafetyIndicators } from "@/components/safety/safety-indicators";
 import type { DashboardRollModel, RsvpStatus } from "@/types";
 
 interface RiderEntry {
   id: string;
   name: string;
   is_minor: boolean;
+  medical_alerts: string | null;
+  media_opt_out: boolean;
 }
 
 interface DashboardGroupSectionProps {
@@ -227,9 +230,14 @@ function CoachRow({
         {coaches.map((coach) => (
           <span
             key={coach.id}
-            className="inline-flex items-center rounded-md bg-background px-2 py-0.5 text-xs ring-1 ring-border"
+            className="inline-flex items-center gap-1 rounded-md bg-background px-2 py-0.5 text-xs ring-1 ring-border"
           >
             {coach.full_name}
+            <SafetyIndicators
+              medicalAlerts={coach.medical_alerts}
+              mediaOptOut={coach.media_opt_out}
+              iconClassName="h-3 w-3"
+            />
           </span>
         ))}
       </div>
@@ -270,9 +278,14 @@ function RiderList({
           ) : (
             <span
               key={r.id}
-              className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs"
+              className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
             >
               {r.name}
+              <SafetyIndicators
+                medicalAlerts={r.medical_alerts}
+                mediaOptOut={r.media_opt_out}
+                iconClassName="h-3 w-3"
+              />
             </span>
           ),
         )}
@@ -305,9 +318,14 @@ function RsvpPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs hover:bg-muted/80 hover:ring-1 hover:ring-primary/30 cursor-pointer transition-colors"
+          className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs hover:bg-muted/80 hover:ring-1 hover:ring-primary/30 cursor-pointer transition-colors"
         >
           {rider.name}
+          <SafetyIndicators
+            medicalAlerts={rider.medical_alerts}
+            mediaOptOut={rider.media_opt_out}
+            iconClassName="h-3 w-3"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-2" align="start">
