@@ -217,13 +217,14 @@ describe("renderBrandedEmail — reason footer", () => {
     expect(html).toContain("&quot;y&quot;");
   });
 
-  it("does not include subscription manage link for required emails", () => {
+  it("does not include subscription reason text for required emails", () => {
     const { html } = renderBrandedEmail({
       ...base,
       reason: { type: "required" },
     });
-    expect(html).not.toContain("Manage notification");
-    expect(html).not.toContain("manage preferences");
+    // These phrases only appear in the subscription variant of the footer
+    expect(html).not.toContain("subscribed to everybody.bike notifications");
+    expect(html).not.toContain("Notifications settings");
   });
 });
 

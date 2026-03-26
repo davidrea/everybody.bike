@@ -86,14 +86,15 @@ describe("getBaseUrl", () => {
       expect(getBaseUrl(req)).toBe("https://everybody.bike");
     });
 
-    it("rejects origin header from non-allowed host", () => {
+    it("rejects origin header from non-allowed host and falls back to host header", () => {
       const req = makeRequest("http://localhost:3000", {
         origin: "https://evil.example.com",
         host: "localhost:3000",
       });
-      // Should fall through to host-based derivation
+      // Rejected origin falls through to host-based derivation; localhost is always allowed
       const result = getBaseUrl(req);
       expect(result).not.toContain("evil.example.com");
+      expect(result).toBe("http://localhost:3000");
     });
 
     it("uses x-forwarded-proto/host when allowed", () => {
@@ -105,7 +106,7 @@ describe("getBaseUrl", () => {
       expect(getBaseUrl(req)).toBe("https://everybody.bike");
     });
 
-    it("rejects forwarded host when not in allowlist", () => {
+    it("rejects forwarded host when not in allowlist and falls back to localhost", () => {
       const req = makeRequest("http://localhost:3000", {
         "x-forwarded-proto": "https",
         "x-forwarded-host": "attacker.example.com",
@@ -113,6 +114,7 @@ describe("getBaseUrl", () => {
       });
       const result = getBaseUrl(req);
       expect(result).not.toContain("attacker.example.com");
+      expect(result).toBe("http://localhost:3000");
     });
 
     it("uses host header when allowed and no origin/forwarded", () => {

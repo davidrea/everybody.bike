@@ -44,18 +44,18 @@ describe("use-events cache invalidation", () => {
     });
   });
 
-  it("invalidates scheduled notifications after event cancel", () => {
+  it("invalidates all affected caches after event cancel", () => {
     const mutation = useCancelEvent() as {
       onSuccess?: (_data: unknown, vars: { id: string }) => void;
     };
     mutation.onSuccess?.({}, { id: "event-1" });
 
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["events", "detail", "event-1"],
-    });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["notifications", "scheduled"],
-    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["events", "list"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["events", "detail", "event-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event-dashboard", "event-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["rsvps", "event-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["notifications", "scheduled"] });
+    expect(invalidateQueries).toHaveBeenCalledTimes(5);
   });
 });
 

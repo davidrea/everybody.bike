@@ -221,9 +221,11 @@ describe("POST /api/admin/import/preview", () => {
       expect(preview[0].errors.some((e: string) => e.includes("Invalid email"))).toBe(true);
     });
 
-    it("accepts multiple parent emails separated by commas", async () => {
+    it("accepts multiple parent emails separated by commas (quoted field)", async () => {
       setupRiderImport();
-      const csv = "first_name,last_name,group_name,parent_emails\nAlex,Lee,Shredders,mom@example.com,dad@example.com";
+      // parent_emails must be a quoted CSV field so the comma is treated as
+      // a separator within the field, not a column delimiter
+      const csv = 'first_name,last_name,group_name,parent_emails\nAlex,Lee,Shredders,"mom@example.com,dad@example.com"';
       const { preview } = await POST(makeRequest({ csv_text: csv, import_type: "riders" })).then(r => r.json());
       expect(preview[0].action).toBe("create");
       expect(preview[0].errors).toHaveLength(0);
