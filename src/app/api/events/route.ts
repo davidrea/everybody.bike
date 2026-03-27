@@ -7,6 +7,7 @@ import {
   buildEventNotificationContent,
   getDefaultEventNotificationTimes,
 } from "@/lib/event-notifications";
+import { logger } from "@/lib/logger";
 
 type EventScheduleInput = {
   id: string;
@@ -84,6 +85,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/events' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -117,6 +119,7 @@ export async function GET(request: Request) {
   const { data, error } = await query;
 
   if (error) {
+    logger.error({ route: 'GET /api/events', userId: user.id, err: error }, 'Failed to fetch events');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -142,6 +145,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (!user) {
+      logger.warn({ route: 'POST /api/events' }, 'Unauthenticated');
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -156,6 +160,7 @@ export async function POST(request: Request) {
       profile?.roles?.includes("super_admin");
 
     if (!isAdmin) {
+      logger.warn({ route: 'POST /api/events', userId: user.id }, 'Forbidden: not admin');
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -163,6 +168,7 @@ export async function POST(request: Request) {
     const parsed = eventSchema.safeParse(body);
 
     if (!parsed.success) {
+      logger.warn({ route: 'POST /api/events', userId: user.id }, 'Validation failed');
       return NextResponse.json(
         { error: "Validation failed", details: parsed.error.flatten() },
         { status: 400 },
@@ -222,6 +228,7 @@ export async function POST(request: Request) {
         .select();
 
       if (error) {
+        logger.error({ route: 'POST /api/events', userId: user.id, err: error }, 'Failed to insert recurring events');
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
@@ -236,6 +243,7 @@ export async function POST(request: Request) {
           .insert(eventGroupRows);
 
         if (egError) {
+          logger.error({ route: 'POST /api/events', userId: user.id, err: egError }, 'Failed to insert event_groups for recurring events');
           return NextResponse.json({ error: egError.message }, { status: 500 });
         }
       }
@@ -253,6 +261,7 @@ export async function POST(request: Request) {
           notificationDefaults,
         );
       } catch (err) {
+        logger.error({ route: 'POST /api/events', userId: user.id, err }, 'Failed to schedule notifications for recurring events');
         return NextResponse.json(
           {
             error:
@@ -262,6 +271,7 @@ export async function POST(request: Request) {
         );
       }
 
+      logger.info({ route: 'POST /api/events', userId: user.id, count: created.length, series_id: seriesId }, 'Recurring events created');
       return NextResponse.json(
         { count: created.length, series_id: seriesId },
         { status: 201 },
@@ -293,6 +303,7 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      logger.error({ route: 'POST /api/events', userId: user.id, err: error }, 'Failed to insert event');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -303,6 +314,7 @@ export async function POST(request: Request) {
         .insert(groupIds.map((gid) => ({ event_id: event.id, group_id: gid })));
 
       if (egError) {
+        logger.error({ route: 'POST /api/events', userId: user.id, err: egError }, 'Failed to insert event_groups');
         return NextResponse.json({ error: egError.message }, { status: 500 });
       }
     }
@@ -322,6 +334,7 @@ export async function POST(request: Request) {
         notificationDefaults,
       );
     } catch (err) {
+      logger.error({ route: 'POST /api/events', userId: user.id, err }, 'Failed to schedule notifications for event');
       return NextResponse.json(
         {
           error:
@@ -331,9 +344,10 @@ export async function POST(request: Request) {
       );
     }
 
+    logger.info({ route: 'POST /api/events', userId: user.id, eventId: event.id }, 'Event created');
     return NextResponse.json(event, { status: 201 });
   } catch (err) {
-    console.error("[events:POST] Unexpected error:", err);
+    logger.error({ route: 'POST /api/events', err }, 'Unexpected error creating event');
     return NextResponse.json(
       { error: "Failed to create event" },
       { status: 500 },

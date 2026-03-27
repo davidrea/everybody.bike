@@ -4,12 +4,14 @@ import { headers } from "next/headers";
 import { getRpIDFromHeaders } from "@/lib/passkey";
 import { cookies } from "next/headers";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // 20 challenge requests per 5 minutes per IP
 const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 20 });
 
 export async function GET(request: Request) {
   if (!limiter.check(getClientIp(request))) {
+    logger.warn({ route: 'GET /api/auth/passkey/login' }, 'Rate limit exceeded');
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -35,6 +37,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(options);
   } catch (err) {
+    logger.error({ route: 'GET /api/auth/passkey/login', err }, 'Failed to generate authentication options');
     const message = err instanceof Error ? err.message : "Failed to generate options";
     return NextResponse.json({ error: message }, { status: 500 });
   }

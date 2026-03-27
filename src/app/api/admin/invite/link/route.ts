@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBaseUrl } from "@/lib/url";
+import { logger } from "@/lib/logger";
+
+const ROUTE = 'POST /api/admin/invite/link';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -10,6 +13,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: ROUTE }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -24,12 +28,14 @@ export async function POST(request: Request) {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: ROUTE, userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { user_id } = await request.json();
 
   if (!user_id) {
+    logger.warn({ route: ROUTE, userId: user.id }, 'Missing user_id');
     return NextResponse.json({ error: "user_id is required" }, { status: 400 });
   }
 
@@ -40,10 +46,12 @@ export async function POST(request: Request) {
     .single();
 
   if (!targetProfile) {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId: user_id }, 'User not found');
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
   if (targetProfile.invite_status === "accepted") {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId: user_id }, 'User already accepted invite');
     return NextResponse.json(
       { error: "User has already accepted their invite" },
       { status: 400 },
@@ -63,6 +71,7 @@ export async function POST(request: Request) {
   });
 
   if (linkError || !linkData) {
+    logger.error({ route: ROUTE, userId: user.id, targetUserId: user_id, err: linkError }, 'Failed to generate invite link');
     return NextResponse.json(
       { error: linkError?.message ?? "Failed to generate invite link" },
       { status: 500 },
@@ -79,5 +88,6 @@ export async function POST(request: Request) {
     .update({ invited_at: new Date().toISOString() })
     .eq("id", user_id);
 
+  logger.info({ route: ROUTE, userId: user.id, targetUserId: user_id }, 'Invite link generated');
   return NextResponse.json({ link: actionUrl.toString() });
 }
