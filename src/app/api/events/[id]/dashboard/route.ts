@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   _request: Request,
@@ -12,6 +13,7 @@ export async function GET(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/events/[id]/dashboard' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,6 +32,7 @@ export async function GET(
 
   const { data: event, error: eventError } = eventResult;
   if (eventError || !event) {
+    logger.warn({ route: 'GET /api/events/[id]/dashboard', userId: user.id, eventId }, 'Event not found');
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 

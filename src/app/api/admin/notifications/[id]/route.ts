@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function DELETE(
   _request: Request,
@@ -12,6 +13,7 @@ export async function DELETE(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'DELETE /api/admin/notifications/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -26,6 +28,7 @@ export async function DELETE(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'DELETE /api/admin/notifications/[id]', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -36,9 +39,11 @@ export async function DELETE(
     .eq("sent", false);
 
   if (error) {
+    logger.error({ route: 'DELETE /api/admin/notifications/[id]', userId: user.id, notificationId: id, err: error }, 'Failed to delete scheduled notification');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logger.info({ route: 'DELETE /api/admin/notifications/[id]', userId: user.id, notificationId: id }, 'Scheduled notification deleted');
   return NextResponse.json({ ok: true });
 }
 
@@ -53,6 +58,7 @@ export async function PATCH(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'PATCH /api/admin/notifications/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -67,6 +73,7 @@ export async function PATCH(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -78,6 +85,7 @@ export async function PATCH(
   if (scheduledFor) {
     const parsedDate = new Date(scheduledFor);
     if (Number.isNaN(parsedDate.getTime())) {
+      logger.warn({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id, notificationId: id }, 'Invalid scheduled time');
       return NextResponse.json({ error: "Invalid scheduled time" }, { status: 400 });
     }
     updates.scheduled_for = parsedDate.toISOString();
@@ -92,12 +100,14 @@ export async function PATCH(
       "event_not_rsvpd",
     ]);
     if (!allowed.has(targetType)) {
+      logger.warn({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id, notificationId: id, targetType }, 'Invalid target type');
       return NextResponse.json({ error: "Invalid target type" }, { status: 400 });
     }
     updates.target_type = targetType;
   }
 
   if (Object.keys(updates).length === 0) {
+    logger.warn({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id, notificationId: id }, 'No updates provided');
     return NextResponse.json({ error: "No updates provided" }, { status: 400 });
   }
 
@@ -110,12 +120,15 @@ export async function PATCH(
     .single();
 
   if (error) {
+    logger.error({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id, notificationId: id, err: error }, 'Failed to update scheduled notification');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if (!data) {
+    logger.warn({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id, notificationId: id }, 'Notification not found or already sent');
     return NextResponse.json({ error: "Notification not found or already sent" }, { status: 404 });
   }
 
+  logger.info({ route: 'PATCH /api/admin/notifications/[id]', userId: user.id, notificationId: id }, 'Scheduled notification updated');
   return NextResponse.json(data);
 }

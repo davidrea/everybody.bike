@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   const supabase = await createClient();
@@ -8,6 +9,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/admin/riders' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -22,6 +24,7 @@ export async function GET() {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'GET /api/admin/riders', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -34,6 +37,7 @@ export async function GET() {
     .order("first_name");
 
   if (error) {
+    logger.error({ route: 'GET /api/admin/riders', userId: user.id, err: error }, 'Failed to fetch riders');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

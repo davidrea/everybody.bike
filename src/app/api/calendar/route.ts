@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBaseUrl } from "@/lib/url";
+import { logger } from "@/lib/logger";
 
 function buildFeedUrls(baseUrl: string, token: string) {
   const httpUrl = `${baseUrl}/api/calendar/feed?token=${token}`;
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "GET /api/calendar" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -60,6 +62,7 @@ export async function GET(request: Request) {
     const { httpUrl, webcalUrl } = await getOrCreateToken(user.id, request, false);
     return NextResponse.json({ url: httpUrl, webcal_url: webcalUrl });
   } catch (err) {
+    logger.error({ route: "GET /api/calendar", userId: user.id, err }, "Failed to load calendar link");
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to load calendar link" },
       { status: 500 },
@@ -74,6 +77,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "POST /api/calendar" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -81,6 +85,7 @@ export async function POST(request: Request) {
     const { httpUrl, webcalUrl } = await getOrCreateToken(user.id, request, true);
     return NextResponse.json({ url: httpUrl, webcal_url: webcalUrl });
   } catch (err) {
+    logger.error({ route: "POST /api/calendar", userId: user.id, err }, "Failed to rotate calendar link");
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to rotate calendar link" },
       { status: 500 },

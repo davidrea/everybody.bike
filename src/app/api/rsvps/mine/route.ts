@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -8,6 +9,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/rsvps/mine' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -15,6 +17,7 @@ export async function GET(request: Request) {
   const eventId = searchParams.get("event_id");
 
   if (!eventId) {
+    logger.warn({ route: 'GET /api/rsvps/mine', userId: user.id }, 'Missing event_id');
     return NextResponse.json(
       { error: "event_id is required" },
       { status: 400 },

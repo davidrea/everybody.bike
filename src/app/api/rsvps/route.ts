@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rsvpSchema } from "@/lib/validators";
+import { logger } from "@/lib/logger";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -11,6 +12,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/rsvps' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,6 +20,7 @@ export async function GET(request: Request) {
   const eventId = searchParams.get("event_id");
 
   if (!eventId) {
+    logger.warn({ route: 'GET /api/rsvps', userId: user.id }, 'Missing event_id');
     return NextResponse.json(
       { error: "event_id is required" },
       { status: 400 },
@@ -32,6 +35,7 @@ export async function GET(request: Request) {
     .eq("event_id", eventId);
 
   if (error) {
+    logger.error({ route: 'GET /api/rsvps', userId: user.id, err: error }, 'Failed to fetch RSVPs');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/rsvps' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -56,7 +61,7 @@ export async function POST(request: Request) {
     const fieldErrors = Object.entries(details.fieldErrors)
       .map(([k, v]) => `${k}: ${(v as string[]).join(", ")}`)
       .join("; ");
-    console.error("[RSVP] Validation failed:", JSON.stringify(body), details);
+    logger.warn({ route: 'POST /api/rsvps', userId: user.id }, 'Validation failed');
     return NextResponse.json(
       { error: `Validation failed${fieldErrors ? `: ${fieldErrors}` : ""}`, details },
       { status: 400 },
@@ -88,6 +93,7 @@ export async function POST(request: Request) {
     .single();
 
   if (!profile) {
+    logger.warn({ route: 'POST /api/rsvps', userId: user.id }, 'Profile not found');
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
@@ -102,10 +108,12 @@ export async function POST(request: Request) {
     .single();
 
   if (!event) {
+    logger.warn({ route: 'POST /api/rsvps', userId: user.id }, 'Event not found');
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
   if (event.canceled_at) {
+    logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Event is canceled');
     return NextResponse.json(
       { error: "This event is canceled. RSVP changes are disabled." },
       { status: 400 },
@@ -127,6 +135,7 @@ export async function POST(request: Request) {
       : new Date(event.starts_at);
 
     if (now > deadline) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'RSVP deadline has passed');
       return NextResponse.json(
         { error: "RSVP deadline has passed" },
         { status: 400 },
@@ -137,6 +146,7 @@ export async function POST(request: Request) {
   if (on_behalf_of) {
     const eventStart = new Date(event.starts_at);
     if (new Date() > eventStart) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Admin RSVP changes disabled for past events');
       return NextResponse.json(
         { error: "Admin RSVP changes are disabled for past events" },
         { status: 400 },
@@ -147,6 +157,7 @@ export async function POST(request: Request) {
   // Admin override: on_behalf_of
   if (on_behalf_of) {
     if (!callerIsAdmin) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Forbidden: non-admin on_behalf_of');
       return NextResponse.json(
         { error: "Only admins can RSVP on behalf of others" },
         { status: 403 },
@@ -155,6 +166,7 @@ export async function POST(request: Request) {
 
     if (rider_id) {
       if (!eventHasGroups) {
+        logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Event limited to Roll Models and Admins');
         return NextResponse.json(
           { error: "This event is limited to Roll Models and Admins" },
           { status: 403 },
@@ -170,6 +182,7 @@ export async function POST(request: Request) {
         .single();
 
       if (!targetProfile) {
+        logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Target profile not found');
         return NextResponse.json(
           { error: "Target profile not found" },
           { status: 404 },
@@ -184,6 +197,7 @@ export async function POST(request: Request) {
           targetProfile.roles?.includes("super_admin")
         )
       ) {
+        logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Event limited to Roll Models and Admins (on behalf of)');
         return NextResponse.json(
           { error: "This event is limited to Roll Models and Admins" },
           { status: 403 },
@@ -217,12 +231,14 @@ export async function POST(request: Request) {
   if (rider_id) {
     // Parent RSVPing for a minor
     if (!eventHasGroups) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Event limited to Roll Models and Admins (minor RSVP)');
       return NextResponse.json(
         { error: "This event is limited to Roll Models and Admins" },
         { status: 403 },
       );
     }
     if (!profile?.roles?.includes("parent")) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Forbidden: user is not a parent');
       return NextResponse.json(
         { error: "Only parents can RSVP for minors" },
         { status: 403 },
@@ -238,6 +254,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!link) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id, riderId: rider_id }, 'Parent not linked to rider');
       return NextResponse.json(
         { error: "You are not linked to this rider" },
         { status: 403 },
@@ -254,6 +271,7 @@ export async function POST(request: Request) {
       profile?.roles?.includes("super_admin");
 
     if (!canSelfRsvp) {
+      logger.warn({ route: 'POST /api/rsvps', userId: user.id, eventId: event_id }, 'Forbidden: user role does not allow self-RSVP');
       return NextResponse.json(
         { error: "You don't have a role that allows self-RSVP" },
         { status: 403 },
@@ -290,6 +308,7 @@ export async function DELETE(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'DELETE /api/rsvps' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -297,6 +316,7 @@ export async function DELETE(request: Request) {
   const { event_id, rider_id, on_behalf_of } = body;
 
   if (!event_id) {
+    logger.warn({ route: 'DELETE /api/rsvps', userId: user.id }, 'Missing event_id');
     return NextResponse.json({ error: "event_id is required" }, { status: 400 });
   }
 
@@ -307,10 +327,12 @@ export async function DELETE(request: Request) {
     .single();
 
   if (!event) {
+    logger.warn({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id }, 'Event not found');
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
   if (event.canceled_at) {
+    logger.warn({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id }, 'Event is canceled');
     return NextResponse.json(
       { error: "This event is canceled. RSVP changes are disabled." },
       { status: 400 },
@@ -328,6 +350,7 @@ export async function DELETE(request: Request) {
     profile?.roles?.includes("super_admin");
 
   if (on_behalf_of && !callerIsAdmin) {
+    logger.warn({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id }, 'Forbidden: non-admin on_behalf_of');
     return NextResponse.json(
       { error: "Only admins can clear RSVPs on behalf of others" },
       { status: 403 },
@@ -336,6 +359,7 @@ export async function DELETE(request: Request) {
 
   if (on_behalf_of) {
     if (new Date() > new Date(event.starts_at)) {
+      logger.warn({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id }, 'Admin RSVP changes disabled for past events');
       return NextResponse.json(
         { error: "Admin RSVP changes are disabled for past events" },
         { status: 400 },
@@ -355,6 +379,7 @@ export async function DELETE(request: Request) {
         .maybeSingle();
 
       if (!link) {
+        logger.warn({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id, riderId: rider_id }, 'Parent not linked to rider');
         return NextResponse.json(
           { error: "You are not linked to this rider" },
           { status: 403 },
@@ -369,6 +394,7 @@ export async function DELETE(request: Request) {
       .eq("rider_id", rider_id);
 
     if (error) {
+      logger.error({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id, riderId: rider_id, err: error }, 'Failed to delete minor RSVP');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else {
@@ -383,10 +409,12 @@ export async function DELETE(request: Request) {
       .is("rider_id", null);
 
     if (error) {
+      logger.error({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id, err: error }, 'Failed to delete self RSVP');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }
 
+  logger.info({ route: 'DELETE /api/rsvps', userId: user.id, eventId: event_id }, 'RSVP deleted');
   return NextResponse.json({ success: true });
 }
 
@@ -416,6 +444,7 @@ async function upsertMinorRsvp(
       .eq("id", existing.id);
 
     if (error) {
+      logger.error({ route: 'POST /api/rsvps', userId, eventId, riderId, err: error }, 'Failed to update minor RSVP');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else {
@@ -428,10 +457,12 @@ async function upsertMinorRsvp(
     });
 
     if (error) {
+      logger.error({ route: 'POST /api/rsvps', userId, eventId, riderId, err: error }, 'Failed to insert minor RSVP');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }
 
+  logger.info({ route: 'POST /api/rsvps', userId, eventId, riderId, status }, 'Minor RSVP upserted');
   return NextResponse.json({ success: true });
 }
 
@@ -469,6 +500,7 @@ async function upsertSelfRsvp(
       .eq("id", existing.id);
 
     if (error) {
+      logger.error({ route: 'POST /api/rsvps', userId, eventId, err: error }, 'Failed to update self RSVP');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else {
@@ -481,10 +513,12 @@ async function upsertSelfRsvp(
     });
 
     if (error) {
+      logger.error({ route: 'POST /api/rsvps', userId, eventId, err: error }, 'Failed to insert self RSVP');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }
 
+  logger.info({ route: 'POST /api/rsvps', userId, eventId, status }, 'Self RSVP upserted');
   return NextResponse.json({ success: true });
 }
 

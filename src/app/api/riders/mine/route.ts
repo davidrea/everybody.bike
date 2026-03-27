@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const looseUuid = z.string().regex(
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -39,7 +40,19 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "GET /api/riders/mine" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: adultCheck } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!adultCheck) {
+    logger.warn({ route: "GET /api/riders/mine", userId: user.id }, "Adult profile not found");
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
   const { data, error } = await supabase
@@ -50,6 +63,7 @@ export async function GET() {
     .eq("parent_id", user.id);
 
   if (error) {
+    logger.error({ route: "GET /api/riders/mine", userId: user.id, err: error }, "Failed to fetch riders");
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -97,6 +111,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "POST /api/riders/mine" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -104,6 +119,7 @@ export async function POST(request: Request) {
   try {
     payload = createRiderSchema.parse(await request.json());
   } catch {
+    logger.warn({ route: "POST /api/riders/mine", userId: user.id }, "Validation failed");
     return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
   }
 
@@ -114,6 +130,7 @@ export async function POST(request: Request) {
       .eq("id", payload.group_id)
       .maybeSingle();
     if (!group) {
+      logger.warn({ route: "POST /api/riders/mine", userId: user.id, groupId: payload.group_id }, "Group not found");
       return NextResponse.json({ error: "Group not found" }, { status: 404 });
     }
   }
@@ -146,6 +163,7 @@ export async function POST(request: Request) {
     .single();
 
   if (riderError || !rider) {
+    logger.error({ route: "POST /api/riders/mine", userId: user.id, err: riderError }, "Failed to create rider");
     return NextResponse.json(
       { error: riderError?.message ?? "Failed to create rider" },
       { status: 500 },
@@ -160,9 +178,11 @@ export async function POST(request: Request) {
   });
 
   if (linkError) {
+    logger.error({ route: "POST /api/riders/mine", userId: user.id, riderId: rider.id, err: linkError }, "Failed to link rider to parent");
     return NextResponse.json({ error: linkError.message }, { status: 500 });
   }
 
+  logger.info({ route: "POST /api/riders/mine", userId: user.id, riderId: rider.id }, "Rider created");
   return NextResponse.json({ success: true, rider_id: rider.id });
 }
 
@@ -174,6 +194,7 @@ export async function PATCH(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "PATCH /api/riders/mine" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -181,6 +202,7 @@ export async function PATCH(request: Request) {
   try {
     payload = updateRiderSchema.parse(await request.json());
   } catch {
+    logger.warn({ route: "PATCH /api/riders/mine", userId: user.id }, "Validation failed");
     return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
   }
 
@@ -192,6 +214,7 @@ export async function PATCH(request: Request) {
     .maybeSingle();
 
   if (!link) {
+    logger.warn({ route: "PATCH /api/riders/mine", userId: user.id, riderId: payload.rider_id }, "Rider link not found");
     return NextResponse.json({ error: "Rider link not found" }, { status: 404 });
   }
 
@@ -207,6 +230,7 @@ export async function PATCH(request: Request) {
     .eq("id", payload.rider_id);
 
   if (riderError) {
+    logger.error({ route: "PATCH /api/riders/mine", userId: user.id, riderId: payload.rider_id, err: riderError }, "Failed to update rider");
     return NextResponse.json({ error: riderError.message }, { status: 500 });
   }
 
@@ -226,6 +250,7 @@ export async function PATCH(request: Request) {
       .maybeSingle();
 
     if (!otherPrimary) {
+      logger.warn({ route: "PATCH /api/riders/mine", userId: user.id, riderId: payload.rider_id }, "Cannot unset only primary contact");
       return NextResponse.json(
         { error: "Cannot unset the only primary contact for this rider" },
         { status: 400 },
@@ -243,9 +268,11 @@ export async function PATCH(request: Request) {
     .eq("parent_id", user.id);
 
   if (linkUpdateError) {
+    logger.error({ route: "PATCH /api/riders/mine", userId: user.id, riderId: payload.rider_id, err: linkUpdateError }, "Failed to update rider link");
     return NextResponse.json({ error: linkUpdateError.message }, { status: 500 });
   }
 
+  logger.info({ route: "PATCH /api/riders/mine", userId: user.id, riderId: payload.rider_id }, "Rider updated");
   return NextResponse.json({ success: true });
 }
 
@@ -257,6 +284,7 @@ export async function DELETE(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "DELETE /api/riders/mine" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -265,6 +293,7 @@ export async function DELETE(request: Request) {
   const parsedRiderId = looseUuid.safeParse(riderId);
 
   if (!parsedRiderId.success) {
+    logger.warn({ route: "DELETE /api/riders/mine", userId: user.id }, "Missing or invalid rider_id");
     return NextResponse.json({ error: "rider_id is required" }, { status: 400 });
   }
 
@@ -276,6 +305,7 @@ export async function DELETE(request: Request) {
     .maybeSingle();
 
   if (!link) {
+    logger.warn({ route: "DELETE /api/riders/mine", userId: user.id, riderId: parsedRiderId.data }, "Rider link not found");
     return NextResponse.json({ error: "Rider link not found" }, { status: 404 });
   }
 
@@ -286,6 +316,7 @@ export async function DELETE(request: Request) {
     .eq("rider_id", parsedRiderId.data);
 
   if (unlinkError) {
+    logger.error({ route: "DELETE /api/riders/mine", userId: user.id, riderId: parsedRiderId.data, err: unlinkError }, "Failed to unlink rider");
     return NextResponse.json({ error: unlinkError.message }, { status: 500 });
   }
 
@@ -306,5 +337,6 @@ export async function DELETE(request: Request) {
       .eq("parent_id", links[0].parent_id);
   }
 
+  logger.info({ route: "DELETE /api/riders/mine", userId: user.id, riderId: parsedRiderId.data }, "Rider unlinked");
   return NextResponse.json({ success: true });
 }
