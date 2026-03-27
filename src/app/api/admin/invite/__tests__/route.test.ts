@@ -7,15 +7,11 @@ vi.mock("@/lib/logger", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 
-// createRateLimiter is called at module import time to create the module-level
-// `limiter`. We capture the returned limiter object from the factory so tests
-// can reach in and override `check` without running into vi.mock hoisting limits.
-let capturedLimiter: { check: ReturnType<typeof vi.fn> } | null = null;
+// Use vi.hoisted so the check fn reference is available inside the vi.mock factory
+// (which is hoisted to the top of the file before all other code).
+const { mockCheck } = vi.hoisted(() => ({ mockCheck: vi.fn(() => true) }));
 vi.mock("@/lib/rate-limit", () => ({
-  createRateLimiter: vi.fn(() => {
-    capturedLimiter = { check: vi.fn(() => true) };
-    return capturedLimiter;
-  }),
+  createRateLimiter: vi.fn(() => ({ check: mockCheck })),
   getClientIp: vi.fn(() => "1.2.3.4"),
 }));
 

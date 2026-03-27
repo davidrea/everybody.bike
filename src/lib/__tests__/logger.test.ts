@@ -25,6 +25,7 @@ describe("logger module", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.resetModules();
   });
 
