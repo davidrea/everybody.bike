@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { startRegistration } from "@simplewebauthn/browser";
@@ -24,6 +24,25 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<"name" | "passkey" | "riders" | "done">("name");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Pre-populate name from profile (admin may have set it on invite)
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile?.full_name) {
+            setFullName(data.profile.full_name);
+          }
+        }
+      } finally {
+        setInitialLoading(false);
+      }
+    }
+    loadProfile();
+  }, []);
   const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
   const [isParent, setIsParent] = useState(false);
   const [riders, setRiders] = useState<MinorRider[]>([{ firstName: "", lastName: "", dateOfBirth: "" }]);
@@ -236,9 +255,10 @@ export default function OnboardingPage() {
                     placeholder="Your full name"
                     required
                     autoFocus
+                    disabled={initialLoading}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || initialLoading}>
                   {loading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -246,49 +266,6 @@ export default function OnboardingPage() {
                   )}
                   Continue
                 </Button>
-                <div className="rounded-lg border p-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Passkey</p>
-                    <p className="text-sm text-muted-foreground">
-                      Register a passkey now to speed up sign-in later.
-                    </p>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    <Label htmlFor="passkey-name-inline">Passkey name (optional)</Label>
-                    <Input
-                      id="passkey-name-inline"
-                      value={passkeyName}
-                      onChange={(e) => setPasskeyName(e.target.value)}
-                      placeholder="e.g. MacBook Touch ID"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-3 w-full"
-                    onClick={() => handlePasskeyRegister(false)}
-                    disabled={isRegisteringPasskey}
-                  >
-                    {isRegisteringPasskey ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <KeyRound className="mr-2 h-4 w-4" />
-                    )}
-                    {isRegisteringPasskey ? "Registering..." : "Register passkey"}
-                  </Button>
-                  {process.env.NEXT_PUBLIC_WEBAUTHN_ALLOW_OVERWRITE_DEV === "true" && (
-                    <div className="mt-3 flex items-center gap-2">
-                      <Switch
-                        checked={allowOverwritePasskey}
-                        onCheckedChange={setAllowOverwritePasskey}
-                      />
-                      <Label>Allow overwrite (dev)</Label>
-                    </div>
-                  )}
-                  {passkeyMessage && (
-                    <p className="mt-2 text-sm text-success">{passkeyMessage}</p>
-                  )}
-                </div>
                 {error && (
                   <p className="text-sm text-destructive">{error}</p>
                 )}
