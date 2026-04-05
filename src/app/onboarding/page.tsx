@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { startRegistration } from "@simplewebauthn/browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,12 +18,17 @@ interface MinorRider {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [step, setStep] = useState<"name" | "passkey" | "riders" | "done">("name");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
+  const [isParent, setIsParent] = useState(false);
+  const [riders, setRiders] = useState<MinorRider[]>([{ firstName: "", lastName: "", dateOfBirth: "" }]);
+  const [error, setError] = useState<string | null>(null);
+  const [passkeyName, setPasskeyName] = useState("");
+  const [allowOverwritePasskey, setAllowOverwritePasskey] = useState(false);
 
   // Pre-populate name from profile (admin may have set it on invite)
   useEffect(() => {
@@ -36,6 +40,9 @@ export default function OnboardingPage() {
           if (data.profile?.full_name) {
             setFullName(data.profile.full_name);
           }
+          if (data.profile?.roles?.includes("parent")) {
+            setIsParent(true);
+          }
         }
       } finally {
         setInitialLoading(false);
@@ -43,55 +50,32 @@ export default function OnboardingPage() {
     }
     loadProfile();
   }, []);
-  const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
-  const [isParent, setIsParent] = useState(false);
-  const [riders, setRiders] = useState<MinorRider[]>([{ firstName: "", lastName: "", dateOfBirth: "" }]);
-  const [error, setError] = useState<string | null>(null);
-  const [passkeyMessage, setPasskeyMessage] = useState<string | null>(null);
-  const [passkeyName, setPasskeyName] = useState("");
-  const [allowOverwritePasskey, setAllowOverwritePasskey] = useState(false);
 
   async function handleNameSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Not authenticated");
+    const res = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name: fullName }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Failed to update name");
       setLoading(false);
       return;
     }
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ full_name: fullName })
-      .eq("id", user.id);
-
-    if (updateError) {
-      setError(updateError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Check if user has parent role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("roles")
-      .eq("id", user.id)
-      .single();
-
-    setIsParent(profile?.roles?.includes("parent") ?? false);
     setStep("passkey");
     setLoading(false);
   }
 
-  async function handlePasskeyRegister(advanceAfter = true) {
+  async function handlePasskeyRegister() {
     setIsRegisteringPasskey(true);
     setError(null);
-    setPasskeyMessage(null);
 
     try {
       const overwriteParam = allowOverwritePasskey ? "?overwrite=1" : "";
@@ -117,9 +101,6 @@ export default function OnboardingPage() {
       }
 
       setPasskeyName("");
-      if (!advanceAfter) {
-        setPasskeyMessage("Passkey registered.");
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Passkey registration failed";
       if (!msg.includes("ceremony was cancelled") && !msg.includes("AbortError")) {
@@ -130,12 +111,10 @@ export default function OnboardingPage() {
     }
 
     setIsRegisteringPasskey(false);
-    if (advanceAfter) {
-      if (isParent) {
-        setStep("riders");
-      } else {
-        await completeOnboarding();
-      }
+    if (isParent) {
+      setStep("riders");
+    } else {
+      await completeOnboarding();
     }
   }
 
@@ -166,44 +145,23 @@ export default function OnboardingPage() {
     setLoading(true);
     setError(null);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Not authenticated");
-      setLoading(false);
-      return;
-    }
-
     // Filter out empty riders
     const validRiders = riders.filter((r) => r.firstName.trim() && r.lastName.trim());
 
     for (const rider of validRiders) {
-      const { data: newRider, error: riderError } = await supabase
-        .from("riders")
-        .insert({
+      const res = await fetch("/api/riders/mine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           first_name: rider.firstName.trim(),
           last_name: rider.lastName.trim(),
-          date_of_birth: rider.dateOfBirth || null,
-        })
-        .select("id")
-        .single();
-
-      if (riderError) {
-        setError(`Failed to add ${rider.firstName}: ${riderError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      // Link rider to parent
-      const { error: linkError } = await supabase.from("rider_parents").insert({
-        rider_id: newRider.id,
-        parent_id: user.id,
-        is_primary: true,
+          date_of_birth: rider.dateOfBirth || undefined,
+        }),
       });
 
-      if (linkError) {
-        setError(`Failed to link ${rider.firstName}: ${linkError.message}`);
+      if (!res.ok) {
+        const data = await res.json();
+        setError(`Failed to add ${rider.firstName}: ${data.error || "Unknown error"}`);
         setLoading(false);
         return;
       }
@@ -213,14 +171,11 @@ export default function OnboardingPage() {
   }
 
   async function completeOnboarding() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from("profiles")
-        .update({ invite_status: "accepted" })
-        .eq("id", user.id);
+    const res = await fetch("/api/onboarding/complete", { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Failed to complete onboarding");
+      return;
     }
     router.push("/");
   }
@@ -302,7 +257,7 @@ export default function OnboardingPage() {
                 </div>
               )}
               <Button
-                onClick={() => handlePasskeyRegister(true)}
+                onClick={handlePasskeyRegister}
                 className="w-full"
                 disabled={isRegisteringPasskey}
               >
