@@ -157,7 +157,7 @@ export function CsvImport() {
               {importType === "riders" ? (
                 <p>
                   Columns: first_name, last_name, date_of_birth, group_name,
-                  parent_emails
+                  parent_emails, parent_names (optional)
                 </p>
               ) : (
                 <p>Columns: full_name, email, roles</p>

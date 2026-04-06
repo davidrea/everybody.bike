@@ -99,6 +99,7 @@ export const csvRiderRowSchema = z.object({
   date_of_birth: z.string().optional(),
   group_name: z.string().min(1, "Group name is required"),
   parent_emails: z.string().min(1, "At least one parent email is required"),
+  parent_names: z.string().optional(),
 });
 
 export const csvAdultRowSchema = z.object({

@@ -122,6 +122,18 @@ async function handleRiderPreview(
       }
     }
 
+    // Validate parent names match emails count (if provided)
+    const parentNames = (d.parent_names ?? "")
+      .split(/[;,]/)
+      .map((n) => n.trim())
+      .filter(Boolean);
+
+    if (parentNames.length > 0 && parentNames.length !== emails.length) {
+      errors.push(
+        `parent_names count (${parentNames.length}) doesn't match parent_emails count (${emails.length})`
+      );
+    }
+
     return {
       row_number: index + 2,
       data: row,
