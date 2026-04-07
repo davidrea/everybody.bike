@@ -121,16 +121,18 @@ export function EventDetail({ eventId }: { eventId: string }) {
 
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
                   <h1 className="font-heading text-3xl font-bold tracking-tight">
                     {event.title}
                   </h1>
-                  <EventTypeBadge type={event.type} />
+                  <div className="pt-2">
+                    <EventTypeBadge type={event.type} />
+                  </div>
                 </div>
               </div>
 
               {admin && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/events/${eventId}/report`}>
                       <Printer className="mr-1 h-4 w-4" />
