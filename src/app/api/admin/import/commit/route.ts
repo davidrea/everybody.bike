@@ -96,6 +96,11 @@ async function handleRiderCommit(
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean);
 
+      const parentNames = (row.parent_names ?? "")
+        .split(/[;,]/)
+        .map((n) => n.trim())
+        .filter(Boolean);
+
       if (!firstName || !lastName || !groupName) {
         result.errors.push({ row: rowNum, message: "Missing required fields" });
         result.skipped++;
@@ -153,7 +158,11 @@ async function handleRiderCommit(
       }
 
       // Link parents
-      for (const email of parentEmails) {
+      for (let pi = 0; pi < parentEmails.length; pi++) {
+        const email = parentEmails[pi];
+        // Use matched name from parent_names column, fall back to email username
+        const fullName = parentNames[pi] || email.split("@")[0];
+
         // Find or create parent profile
         const { data: parentProfile } = await supabase
           .from("profiles")
@@ -165,11 +174,18 @@ async function handleRiderCommit(
 
         if (parentProfile) {
           parentId = parentProfile.id;
-          // Ensure parent role
+          // Ensure parent role, update name if provided
+          const updates: Record<string, unknown> = {};
           if (!parentProfile.roles.includes("parent")) {
+            updates.roles = [...parentProfile.roles, "parent"];
+          }
+          if (parentNames[pi]) {
+            updates.full_name = fullName;
+          }
+          if (Object.keys(updates).length > 0) {
             await admin
               .from("profiles")
-              .update({ roles: [...parentProfile.roles, "parent"] })
+              .update(updates)
               .eq("id", parentId);
           }
         } else {
@@ -178,7 +194,7 @@ async function handleRiderCommit(
             await admin.auth.admin.createUser({
               email,
               email_confirm: false,
-              user_metadata: { full_name: email.split("@")[0] },
+              user_metadata: { full_name: fullName },
             });
 
           if (authError || !authData.user) {
@@ -194,6 +210,7 @@ async function handleRiderCommit(
           await admin
             .from("profiles")
             .update({
+              full_name: fullName,
               roles: ["parent"],
               invite_status: "pending",
               invited_at: new Date().toISOString(),
@@ -214,7 +231,7 @@ async function handleRiderCommit(
               rider_id: riderId,
               parent_id: parentId,
               relationship: "parent",
-              is_primary: parentEmails.indexOf(email) === 0,
+              is_primary: pi === 0,
             },
             { onConflict: "rider_id,parent_id" },
           );
