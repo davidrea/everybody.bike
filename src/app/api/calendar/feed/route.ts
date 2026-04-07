@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBaseUrl } from "@/lib/url";
+import { logger } from "@/lib/logger";
 
 const RSVP_LABELS: Record<string, string> = {
   yes: "Yes",
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");
   if (!token) {
+    logger.warn({ route: "GET /api/calendar/feed" }, "Missing calendar token");
     return new Response("Missing calendar token.", { status: 400 });
   }
 
@@ -68,6 +70,7 @@ export async function GET(request: Request) {
     .single();
 
   if (profileError || !profile) {
+    logger.warn({ route: "GET /api/calendar/feed" }, "Calendar not found for token");
     return new Response("Calendar not found.", { status: 404 });
   }
 
@@ -81,6 +84,7 @@ export async function GET(request: Request) {
   const to = parseDate(searchParams.get("to")) ?? defaultTo;
 
   if (from > to) {
+    logger.warn({ route: "GET /api/calendar/feed", userId: profile.id }, "Invalid date range");
     return new Response("Invalid date range.", { status: 400 });
   }
 
@@ -137,6 +141,7 @@ export async function GET(request: Request) {
     .order("starts_at", { ascending: true });
 
   if (eventsError) {
+    logger.error({ route: "GET /api/calendar/feed", userId: profile.id, err: eventsError }, "Failed to load events for calendar feed");
     return new Response("Failed to load events.", { status: 500 });
   }
 

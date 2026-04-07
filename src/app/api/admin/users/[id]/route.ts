@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const updateUserSchema = z.object({
   full_name: z.string().trim().min(1).max(200).optional(),
@@ -30,6 +31,7 @@ export async function PATCH(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'PATCH /api/admin/users/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -44,12 +46,14 @@ export async function PATCH(
     currentProfile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'PATCH /api/admin/users/[id]', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();
   const parsed = updateUserSchema.safeParse(body);
   if (!parsed.success) {
+    logger.warn({ route: 'PATCH /api/admin/users/[id]', userId: user.id, targetUserId }, 'Validation failed');
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -63,6 +67,7 @@ export async function PATCH(
     .single();
 
   if (!targetProfile) {
+    logger.warn({ route: 'PATCH /api/admin/users/[id]', userId: user.id, targetUserId }, 'User not found');
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
@@ -94,6 +99,7 @@ export async function PATCH(
         .maybeSingle();
 
       if (existingEmailProfile) {
+        logger.warn({ route: 'PATCH /api/admin/users/[id]', userId: user.id, targetUserId }, 'Email already in use');
         return NextResponse.json(
           { error: "A user with this email address already exists" },
           { status: 409 },
@@ -120,6 +126,7 @@ export async function PATCH(
       authUpdates,
     );
     if (authError) {
+      logger.error({ route: 'PATCH /api/admin/users/[id]', userId: user.id, targetUserId, err: authError }, 'Failed to update auth user');
       return NextResponse.json({ error: authError.message }, { status: 500 });
     }
   }
@@ -136,10 +143,12 @@ export async function PATCH(
       .eq("id", targetUserId);
 
     if (profileError) {
+      logger.error({ route: 'PATCH /api/admin/users/[id]', userId: user.id, targetUserId, err: profileError }, 'Failed to update user profile');
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
   }
 
+  logger.info({ route: 'PATCH /api/admin/users/[id]', userId: user.id, targetUserId }, 'User updated');
   return NextResponse.json({ success: true });
 }
 
@@ -154,10 +163,12 @@ export async function DELETE(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'DELETE /api/admin/users/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (targetUserId === user.id) {
+    logger.warn({ route: 'DELETE /api/admin/users/[id]', userId: user.id, targetUserId }, 'Cannot delete own account');
     return NextResponse.json(
       { error: "You cannot delete your own account" },
       { status: 400 },
@@ -174,6 +185,7 @@ export async function DELETE(
   const isAdmin = isSuperAdmin || currentProfile?.roles?.includes("admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'DELETE /api/admin/users/[id]', userId: user.id, targetUserId }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -184,6 +196,7 @@ export async function DELETE(
     .single();
 
   if (!targetProfile) {
+    logger.warn({ route: 'DELETE /api/admin/users/[id]', userId: user.id, targetUserId }, 'User not found');
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
@@ -192,6 +205,7 @@ export async function DELETE(
     targetProfile.roles.includes("super_admin");
 
   if (targetIsAdmin && !isSuperAdmin) {
+    logger.warn({ route: 'DELETE /api/admin/users/[id]', userId: user.id, targetUserId }, 'Forbidden: only super admins can delete admin users');
     return NextResponse.json(
       { error: "Only super admins can delete admin users" },
       { status: 403 },
@@ -202,8 +216,10 @@ export async function DELETE(
   const { error: deleteError } = await admin.auth.admin.deleteUser(targetUserId);
 
   if (deleteError) {
+    logger.error({ route: 'DELETE /api/admin/users/[id]', userId: user.id, targetUserId, err: deleteError }, 'Failed to delete user');
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
+  logger.info({ route: 'DELETE /api/admin/users/[id]', userId: user.id, targetUserId }, 'User deleted');
   return NextResponse.json({ success: true });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 function escapeIcal(str: string): string {
   return str
@@ -43,6 +44,7 @@ export async function GET(
     .single();
 
   if (!profile) {
+    logger.warn({ route: "GET /api/calendar/[token]" }, "Calendar token not found");
     return new NextResponse("Not Found", { status: 404 });
   }
 
@@ -95,6 +97,7 @@ export async function GET(
     .order("starts_at", { ascending: true });
 
   if (error) {
+    logger.error({ route: "GET /api/calendar/[token]", userId: profile.id, err: error }, "Failed to fetch events for calendar");
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 

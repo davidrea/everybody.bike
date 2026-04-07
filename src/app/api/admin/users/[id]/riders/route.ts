@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 const looseUuid = z.string().regex(
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -31,13 +32,14 @@ const updateRiderSchema = z.object({
   media_opt_out: z.boolean(),
 });
 
-async function requireAdmin() {
+async function requireAdmin(route: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route }, 'Unauthenticated');
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
@@ -52,10 +54,11 @@ async function requireAdmin() {
     currentProfile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route, userId: user.id }, 'Forbidden: not admin');
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  return { supabase };
+  return { supabase, userId: user.id };
 }
 
 export async function GET(
@@ -63,7 +66,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: adultId } = await params;
-  const auth = await requireAdmin();
+  const route = 'GET /api/admin/users/[id]/riders';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   const { data: adult } = await auth.supabase
@@ -73,6 +77,7 @@ export async function GET(
     .maybeSingle();
 
   if (!adult) {
+    logger.warn({ route, userId: auth.userId, adultId }, 'Adult not found');
     return NextResponse.json({ error: "Adult not found" }, { status: 404 });
   }
 
@@ -85,6 +90,7 @@ export async function GET(
     .order("is_primary", { ascending: false });
 
   if (error) {
+    logger.error({ route, userId: auth.userId, adultId, err: error }, 'Failed to fetch riders for user');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -127,13 +133,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: adultId } = await params;
-  const auth = await requireAdmin();
+  const route = 'POST /api/admin/users/[id]/riders';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   let payload: z.infer<typeof createRiderSchema>;
   try {
     payload = createRiderSchema.parse(await request.json());
   } catch {
+    logger.warn({ route, userId: auth.userId, adultId }, 'Invalid request payload');
     return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
   }
 
@@ -144,6 +152,7 @@ export async function POST(
     .maybeSingle();
 
   if (!adult) {
+    logger.warn({ route, userId: auth.userId, adultId }, 'Adult not found');
     return NextResponse.json({ error: "Adult not found" }, { status: 404 });
   }
 
@@ -154,6 +163,7 @@ export async function POST(
     .maybeSingle();
 
   if (!group) {
+    logger.warn({ route, userId: auth.userId, adultId, groupId: payload.group_id }, 'Group not found');
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
 
@@ -171,6 +181,7 @@ export async function POST(
     .single();
 
   if (riderError || !rider) {
+    logger.error({ route, userId: auth.userId, adultId, err: riderError }, 'Failed to create rider');
     return NextResponse.json(
       { error: riderError?.message ?? "Failed to create rider" },
       { status: 500 },
@@ -185,6 +196,7 @@ export async function POST(
   });
 
   if (linkError) {
+    logger.error({ route, userId: auth.userId, adultId, riderId: rider.id, err: linkError }, 'Failed to link rider to parent');
     return NextResponse.json({ error: linkError.message }, { status: 500 });
   }
 
@@ -196,6 +208,7 @@ export async function POST(
       .eq("id", adultId);
   }
 
+  logger.info({ route, userId: auth.userId, adultId, riderId: rider.id }, 'Rider created and linked to parent');
   return NextResponse.json({ success: true, rider_id: rider.id });
 }
 
@@ -204,7 +217,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: adultId } = await params;
-  const auth = await requireAdmin();
+  const route = 'DELETE /api/admin/users/[id]/riders';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   const { searchParams } = new URL(request.url);
@@ -212,6 +226,7 @@ export async function DELETE(
   const parsedRiderId = looseUuid.safeParse(riderId);
 
   if (!parsedRiderId.success) {
+    logger.warn({ route, userId: auth.userId, adultId }, 'Missing or invalid rider_id');
     return NextResponse.json({ error: "rider_id is required" }, { status: 400 });
   }
 
@@ -223,6 +238,7 @@ export async function DELETE(
     .maybeSingle();
 
   if (!link) {
+    logger.warn({ route, userId: auth.userId, adultId, riderId: parsedRiderId.data }, 'Link not found');
     return NextResponse.json({ error: "Link not found" }, { status: 404 });
   }
 
@@ -233,6 +249,7 @@ export async function DELETE(
     .eq("parent_id", adultId);
 
   if (deleteError) {
+    logger.error({ route, userId: auth.userId, adultId, riderId: parsedRiderId.data, err: deleteError }, 'Failed to delete rider link');
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
@@ -253,6 +270,7 @@ export async function DELETE(
     }
   }
 
+  logger.info({ route, userId: auth.userId, adultId, riderId: parsedRiderId.data }, 'Rider link deleted');
   return NextResponse.json({ success: true });
 }
 
@@ -261,13 +279,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: adultId } = await params;
-  const auth = await requireAdmin();
+  const route = 'PATCH /api/admin/users/[id]/riders';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   let payload: z.infer<typeof updateRiderSchema>;
   try {
     payload = updateRiderSchema.parse(await request.json());
   } catch {
+    logger.warn({ route, userId: auth.userId, adultId }, 'Invalid request payload');
     return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
   }
 
@@ -279,6 +299,7 @@ export async function PATCH(
     .maybeSingle();
 
   if (!link) {
+    logger.warn({ route, userId: auth.userId, adultId, riderId: payload.rider_id }, 'Rider link not found');
     return NextResponse.json({ error: "Rider link not found" }, { status: 404 });
   }
 
@@ -294,6 +315,7 @@ export async function PATCH(
     .eq("id", payload.rider_id);
 
   if (riderError) {
+    logger.error({ route, userId: auth.userId, adultId, riderId: payload.rider_id, err: riderError }, 'Failed to update rider');
     return NextResponse.json({ error: riderError.message }, { status: 500 });
   }
 
@@ -313,6 +335,7 @@ export async function PATCH(
       .maybeSingle();
 
     if (!otherPrimary) {
+      logger.warn({ route, userId: auth.userId, adultId, riderId: payload.rider_id }, 'Cannot unset the only primary contact for this rider');
       return NextResponse.json(
         { error: "Cannot unset the only primary contact for this rider" },
         { status: 400 },
@@ -330,8 +353,10 @@ export async function PATCH(
     .eq("rider_id", payload.rider_id);
 
   if (linkError) {
+    logger.error({ route, userId: auth.userId, adultId, riderId: payload.rider_id, err: linkError }, 'Failed to update rider link');
     return NextResponse.json({ error: linkError.message }, { status: 500 });
   }
 
+  logger.info({ route, userId: auth.userId, adultId, riderId: payload.rider_id }, 'Rider updated');
   return NextResponse.json({ success: true });
 }

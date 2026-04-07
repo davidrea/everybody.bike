@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 const looseUuid = z.string().regex(
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -22,13 +23,14 @@ const updateLinkSchema = z.object({
   is_primary: z.boolean(),
 });
 
-async function requireAdmin() {
+async function requireAdmin(route: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route }, 'Unauthenticated');
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
@@ -43,10 +45,11 @@ async function requireAdmin() {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route, userId: user.id }, 'Forbidden: not admin');
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  return { admin: createAdminClient() };
+  return { admin: createAdminClient(), userId: user.id };
 }
 
 async function ensureRiderAndAdultExist(
@@ -86,13 +89,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: riderId } = await params;
-  const auth = await requireAdmin();
+  const route = 'POST /api/admin/riders/[id]/parents';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   let payload: z.infer<typeof createLinkSchema>;
   try {
     payload = createLinkSchema.parse(await request.json());
   } catch {
+    logger.warn({ route, userId: auth.userId, riderId }, 'Invalid request payload');
     return NextResponse.json(
       { error: "adult_id is required and relationship/is_primary are invalid" },
       { status: 400 },
@@ -108,6 +113,7 @@ export async function POST(
     .eq("rider_id", riderId);
 
   if (existingLinksError) {
+    logger.error({ route, userId: auth.userId, riderId, err: existingLinksError }, 'Failed to fetch existing parent links');
     return NextResponse.json({ error: existingLinksError.message }, { status: 500 });
   }
 
@@ -117,6 +123,7 @@ export async function POST(
   );
 
   if (existingLink) {
+    logger.warn({ route, userId: auth.userId, riderId, adultId: payload.adult_id }, 'Adult already linked to rider');
     return NextResponse.json(
       { error: "Adult is already linked to this rider" },
       { status: 409 },
@@ -135,6 +142,7 @@ export async function POST(
       .eq("rider_id", riderId);
 
     if (clearPrimaryError) {
+      logger.error({ route, userId: auth.userId, riderId, err: clearPrimaryError }, 'Failed to clear existing primary parent');
       return NextResponse.json(
         { error: clearPrimaryError.message },
         { status: 500 },
@@ -150,6 +158,7 @@ export async function POST(
   });
 
   if (insertError) {
+    logger.error({ route, userId: auth.userId, riderId, adultId: payload.adult_id, err: insertError }, 'Failed to insert parent link');
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
@@ -160,10 +169,12 @@ export async function POST(
       .eq("id", check.adult.id);
 
     if (roleError) {
+      logger.error({ route, userId: auth.userId, riderId, adultId: payload.adult_id, err: roleError }, 'Failed to assign parent role');
       return NextResponse.json({ error: roleError.message }, { status: 500 });
     }
   }
 
+  logger.info({ route, userId: auth.userId, riderId, adultId: payload.adult_id }, 'Parent linked to rider');
   return NextResponse.json({ success: true });
 }
 
@@ -172,13 +183,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: riderId } = await params;
-  const auth = await requireAdmin();
+  const route = 'PATCH /api/admin/riders/[id]/parents';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   let payload: z.infer<typeof updateLinkSchema>;
   try {
     payload = updateLinkSchema.parse(await request.json());
   } catch {
+    logger.warn({ route, userId: auth.userId, riderId }, 'Invalid request payload');
     return NextResponse.json(
       { error: "adult_id, relationship, and is_primary are required" },
       { status: 400 },
@@ -193,6 +206,7 @@ export async function PATCH(
     .maybeSingle();
 
   if (!existingLink) {
+    logger.warn({ route, userId: auth.userId, riderId, adultId: payload.adult_id }, 'Link not found');
     return NextResponse.json({ error: "Link not found" }, { status: 404 });
   }
 
@@ -204,6 +218,7 @@ export async function PATCH(
       .neq("parent_id", payload.adult_id);
 
     if (clearPrimaryError) {
+      logger.error({ route, userId: auth.userId, riderId, err: clearPrimaryError }, 'Failed to clear existing primary parent');
       return NextResponse.json(
         { error: clearPrimaryError.message },
         { status: 500 },
@@ -219,6 +234,7 @@ export async function PATCH(
       .maybeSingle();
 
     if (otherPrimaryError) {
+      logger.error({ route, userId: auth.userId, riderId, err: otherPrimaryError }, 'Failed to check for other primary parent');
       return NextResponse.json(
         { error: otherPrimaryError.message },
         { status: 500 },
@@ -226,6 +242,7 @@ export async function PATCH(
     }
 
     if (!otherPrimary) {
+      logger.warn({ route, userId: auth.userId, riderId, adultId: payload.adult_id }, 'Cannot unset the only primary contact');
       return NextResponse.json(
         {
           error:
@@ -246,9 +263,11 @@ export async function PATCH(
     .eq("parent_id", payload.adult_id);
 
   if (updateError) {
+    logger.error({ route, userId: auth.userId, riderId, adultId: payload.adult_id, err: updateError }, 'Failed to update parent link');
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
+  logger.info({ route, userId: auth.userId, riderId, adultId: payload.adult_id }, 'Parent link updated');
   return NextResponse.json({ success: true });
 }
 
@@ -257,7 +276,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: riderId } = await params;
-  const auth = await requireAdmin();
+  const route = 'DELETE /api/admin/riders/[id]/parents';
+  const auth = await requireAdmin(route);
   if ("error" in auth) return auth.error;
 
   const { searchParams } = new URL(request.url);
@@ -265,6 +285,7 @@ export async function DELETE(
   const parsedAdultId = looseUuid.safeParse(adultId);
 
   if (!parsedAdultId.success) {
+    logger.warn({ route, userId: auth.userId, riderId }, 'Missing or invalid adult_id');
     return NextResponse.json({ error: "adult_id is required" }, { status: 400 });
   }
 
@@ -276,6 +297,7 @@ export async function DELETE(
     .maybeSingle();
 
   if (!linkToDelete) {
+    logger.warn({ route, userId: auth.userId, riderId, adultId: parsedAdultId.data }, 'Link not found');
     return NextResponse.json({ error: "Link not found" }, { status: 404 });
   }
 
@@ -286,6 +308,7 @@ export async function DELETE(
     .eq("parent_id", parsedAdultId.data);
 
   if (deleteError) {
+    logger.error({ route, userId: auth.userId, riderId, adultId: parsedAdultId.data, err: deleteError }, 'Failed to delete parent link');
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
@@ -297,6 +320,7 @@ export async function DELETE(
       .order("parent_id");
 
     if (remainingError) {
+      logger.error({ route, userId: auth.userId, riderId, err: remainingError }, 'Failed to fetch remaining parent links after delete');
       return NextResponse.json({ error: remainingError.message }, { status: 500 });
     }
 
@@ -309,10 +333,12 @@ export async function DELETE(
         .eq("parent_id", links[0].parent_id);
 
       if (promoteError) {
+        logger.error({ route, userId: auth.userId, riderId, err: promoteError }, 'Failed to promote new primary parent after delete');
         return NextResponse.json({ error: promoteError.message }, { status: 500 });
       }
     }
   }
 
+  logger.info({ route, userId: auth.userId, riderId, adultId: parsedAdultId.data }, 'Parent link deleted');
   return NextResponse.json({ success: true });
 }

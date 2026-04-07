@@ -6,6 +6,7 @@ import { sendWebPushNotification } from "@/lib/push-server";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/url";
 import { renderBrandedEmail } from "@/lib/email-template";
+import { logger } from "@/lib/logger";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -171,6 +172,7 @@ export async function POST(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/events/[id]/cancel' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -185,12 +187,14 @@ export async function POST(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'POST /api/events/[id]/cancel', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();
   const parsed = eventCancellationSchema.safeParse(body);
   if (!parsed.success) {
+    logger.warn({ route: 'POST /api/events/[id]/cancel', userId: user.id }, 'Validation failed');
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -206,10 +210,12 @@ export async function POST(
     .single();
 
   if (eventError || !event) {
+    logger.warn({ route: 'POST /api/events/[id]/cancel', userId: user.id, eventId: id }, 'Event not found');
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
   if (event.canceled_at) {
+    logger.warn({ route: 'POST /api/events/[id]/cancel', userId: user.id, eventId: id }, 'Event already canceled');
     return NextResponse.json({ error: "Event is already canceled" }, { status: 409 });
   }
 
@@ -224,6 +230,7 @@ export async function POST(
     .eq("id", id);
 
   if (updateError) {
+    logger.error({ route: 'POST /api/events/[id]/cancel', userId: user.id, eventId: id, err: updateError }, 'Failed to cancel event');
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
@@ -333,6 +340,7 @@ export async function POST(
     }
   }
 
+  logger.info({ route: 'POST /api/events/[id]/cancel', userId: user.id, eventId: id }, 'Event canceled');
   return NextResponse.json({
     success: true,
     canceled_at: canceledAt,

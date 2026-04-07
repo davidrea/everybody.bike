@@ -3,6 +3,7 @@ import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getOriginFromHeaders, getRpIDFromHeaders } from "@/lib/passkey";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/auth/passkey/register/verify' }, 'Unauthenticated');
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -24,6 +26,7 @@ export async function POST(request: Request) {
   const expectedChallenge = user.user_metadata?.webauthn_challenge;
 
   if (!expectedChallenge) {
+    logger.warn({ route: 'POST /api/auth/passkey/register/verify', userId: user.id }, 'No challenge found in user metadata');
     return NextResponse.json({ error: "No challenge found" }, { status: 400 });
   }
 
@@ -40,6 +43,7 @@ export async function POST(request: Request) {
     });
 
     if (!verification.verified || !verification.registrationInfo) {
+      logger.warn({ route: 'POST /api/auth/passkey/register/verify', userId: user.id }, 'Passkey registration verification failed');
       return NextResponse.json({ error: "Verification failed" }, { status: 400 });
     }
 
@@ -67,6 +71,7 @@ export async function POST(request: Request) {
       : await supabase.from("passkey_credentials").insert(insertPayload);
 
     if (error) {
+      logger.error({ route: 'POST /api/auth/passkey/register/verify', userId: user.id, err: error }, 'Failed to store passkey credential');
       return NextResponse.json({ error: "Failed to store credential" }, { status: 500 });
     }
 
@@ -75,8 +80,10 @@ export async function POST(request: Request) {
       data: { webauthn_challenge: null },
     });
 
+    logger.info({ route: 'POST /api/auth/passkey/register/verify', userId: user.id }, 'Passkey registered successfully');
     return NextResponse.json({ verified: true });
   } catch (err) {
+    logger.error({ route: 'POST /api/auth/passkey/register/verify', userId: user.id, err }, 'Unexpected error during passkey registration verification');
     const message = err instanceof Error ? err.message : "Verification error";
     return NextResponse.json({ error: message }, { status: 400 });
   }

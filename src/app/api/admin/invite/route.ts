@@ -4,12 +4,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { inviteSchema } from "@/lib/validators";
 import { getBaseUrl } from "@/lib/url";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // 20 invites per 5 minutes per IP (admins batch-inviting during setup)
 const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 20 });
 
 export async function POST(request: Request) {
   if (!limiter.check(getClientIp(request))) {
+    logger.warn({ route: 'POST /api/admin/invite' }, 'Rate limited');
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -19,6 +21,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/admin/invite' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -33,6 +36,7 @@ export async function POST(request: Request) {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'POST /api/admin/invite', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -40,6 +44,7 @@ export async function POST(request: Request) {
   const parsed = inviteSchema.safeParse(body);
 
   if (!parsed.success) {
+    logger.warn({ route: 'POST /api/admin/invite', userId: user.id }, 'Validation failed');
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -56,6 +61,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (existing) {
+    logger.warn({ route: 'POST /api/admin/invite', userId: user.id, email }, 'User already exists');
     return NextResponse.json(
       { error: "A user with this email already exists" },
       { status: 409 },
@@ -74,12 +80,14 @@ export async function POST(request: Request) {
   );
 
   if (inviteError) {
+    logger.error({ route: 'POST /api/admin/invite', userId: user.id, err: inviteError }, 'Failed to invite user');
     return NextResponse.json({ error: inviteError.message }, { status: 500 });
   }
 
   const invitedUserId = inviteData.user?.id;
 
   if (!invitedUserId) {
+    logger.error({ route: 'POST /api/admin/invite', userId: user.id }, 'Invite sent but no user ID returned');
     return NextResponse.json(
       { error: "Invite was sent but user ID was not returned" },
       { status: 500 },
@@ -99,8 +107,10 @@ export async function POST(request: Request) {
     .eq("id", invitedUserId);
 
   if (profileError) {
+    logger.error({ route: 'POST /api/admin/invite', userId: user.id, invitedUserId, err: profileError }, 'Failed to update invited user profile');
     return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
+  logger.info({ route: 'POST /api/admin/invite', userId: user.id, invitedUserId, email }, 'User invited');
   return NextResponse.json({ id: invitedUserId }, { status: 201 });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 // Assign a member to a group
 export async function POST(
@@ -13,6 +14,7 @@ export async function POST(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "POST /api/groups/[id]/members" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -27,12 +29,14 @@ export async function POST(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: "POST /api/groups/[id]/members", userId: user.id, groupId }, "Forbidden");
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { type, member_id } = await request.json();
 
   if (!type || !member_id) {
+    logger.warn({ route: "POST /api/groups/[id]/members", userId: user.id, groupId }, "Missing type or member_id");
     return NextResponse.json(
       { error: "type and member_id are required" },
       { status: 400 },
@@ -47,6 +51,7 @@ export async function POST(
       .eq("id", member_id);
 
     if (error) {
+      logger.error({ route: "POST /api/groups/[id]/members", userId: user.id, groupId, err: error }, "Failed to assign rider to group");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else if (type === "adult_rider") {
@@ -57,6 +62,7 @@ export async function POST(
       .eq("id", member_id);
 
     if (error) {
+      logger.error({ route: "POST /api/groups/[id]/members", userId: user.id, groupId, err: error }, "Failed to assign adult rider to group");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else if (type === "roll_model") {
@@ -67,20 +73,24 @@ export async function POST(
 
     if (error) {
       if (error.code === "23505") {
+        logger.warn({ route: "POST /api/groups/[id]/members", userId: user.id, groupId, memberId: member_id }, "Already assigned");
         return NextResponse.json(
           { error: "Already assigned" },
           { status: 409 },
         );
       }
+      logger.error({ route: "POST /api/groups/[id]/members", userId: user.id, groupId, err: error }, "Failed to assign roll model to group");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else {
+    logger.warn({ route: "POST /api/groups/[id]/members", userId: user.id, groupId, type }, "Invalid member type");
     return NextResponse.json(
       { error: "Invalid type. Must be rider, adult_rider, or roll_model" },
       { status: 400 },
     );
   }
 
+  logger.info({ route: "POST /api/groups/[id]/members", userId: user.id, groupId, type, memberId: member_id }, "Member assigned to group");
   return NextResponse.json({ success: true });
 }
 
@@ -96,6 +106,7 @@ export async function DELETE(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "DELETE /api/groups/[id]/members" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -110,6 +121,7 @@ export async function DELETE(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId }, "Forbidden");
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -118,6 +130,7 @@ export async function DELETE(
   const memberId = searchParams.get("member_id");
 
   if (!type || !memberId) {
+    logger.warn({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId }, "Missing type or member_id");
     return NextResponse.json(
       { error: "type and member_id query params are required" },
       { status: 400 },
@@ -132,6 +145,7 @@ export async function DELETE(
       .eq("group_id", groupId);
 
     if (error) {
+      logger.error({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId, err: error }, "Failed to remove rider from group");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else if (type === "adult_rider") {
@@ -142,6 +156,7 @@ export async function DELETE(
       .eq("rider_group_id", groupId);
 
     if (error) {
+      logger.error({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId, err: error }, "Failed to remove adult rider from group");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else if (type === "roll_model") {
@@ -152,11 +167,14 @@ export async function DELETE(
       .eq("group_id", groupId);
 
     if (error) {
+      logger.error({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId, err: error }, "Failed to remove roll model from group");
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
   } else {
+    logger.warn({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId, type }, "Invalid member type");
     return NextResponse.json({ error: "Invalid type" }, { status: 400 });
   }
 
+  logger.info({ route: "DELETE /api/groups/[id]/members", userId: user.id, groupId, type, memberId }, "Member removed from group");
   return NextResponse.json({ success: true });
 }

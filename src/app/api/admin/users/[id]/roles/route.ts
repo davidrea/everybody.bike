@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { roleUpdateSchema } from "@/lib/validators";
+import { logger } from "@/lib/logger";
+
+const ROUTE = 'PATCH /api/admin/users/[id]/roles';
 
 export async function PATCH(
   request: Request,
@@ -14,6 +17,7 @@ export async function PATCH(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: ROUTE }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,6 +32,7 @@ export async function PATCH(
     isSuperAdmin || currentProfile?.roles?.includes("admin");
 
   if (!isAdmin) {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -35,6 +40,7 @@ export async function PATCH(
   const parsed = roleUpdateSchema.safeParse(body);
 
   if (!parsed.success) {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId }, 'Validation failed');
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -51,6 +57,7 @@ export async function PATCH(
     .single();
 
   if (!targetProfile) {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId }, 'User not found');
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
@@ -66,6 +73,7 @@ export async function PATCH(
     JSON.stringify(newAdminRoles.sort());
 
   if (adminRolesChanged && !isSuperAdmin) {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId }, 'Forbidden: only super admins can modify admin roles');
     return NextResponse.json(
       { error: "Only super admins can modify admin roles" },
       { status: 403 },
@@ -78,6 +86,7 @@ export async function PATCH(
     isSuperAdmin &&
     !newRoles.includes("super_admin")
   ) {
+    logger.warn({ route: ROUTE, userId: user.id, targetUserId }, 'Cannot remove own super admin role');
     return NextResponse.json(
       { error: "Cannot remove your own super admin role" },
       { status: 400 },
@@ -91,8 +100,10 @@ export async function PATCH(
     .eq("id", targetUserId);
 
   if (error) {
+    logger.error({ route: ROUTE, userId: user.id, targetUserId, err: error }, 'Failed to update user roles');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logger.info({ route: ROUTE, userId: user.id, targetUserId, newRoles }, 'User roles updated');
   return NextResponse.json({ success: true });
 }

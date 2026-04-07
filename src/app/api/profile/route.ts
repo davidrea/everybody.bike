@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 const updateProfileSchema = z.object({
   full_name: z.string().trim().min(1).max(200).optional(),
@@ -25,6 +26,7 @@ export async function PATCH(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "PATCH /api/profile" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,6 +34,7 @@ export async function PATCH(request: Request) {
   const parsed = updateProfileSchema.safeParse(body);
 
   if (!parsed.success) {
+    logger.warn({ route: "PATCH /api/profile", userId: user.id }, "Validation failed");
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -43,6 +46,11 @@ export async function PATCH(request: Request) {
     .select("email")
     .eq("id", user.id)
     .single();
+
+  if (!currentProfile) {
+    logger.warn({ route: "PATCH /api/profile", userId: user.id }, "Profile not found");
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
 
   const updates: {
     full_name?: string;
@@ -65,6 +73,7 @@ export async function PATCH(request: Request) {
         .maybeSingle();
 
       if (existingEmailProfile) {
+        logger.warn({ route: "PATCH /api/profile", userId: user.id }, "Email conflict");
         return NextResponse.json(
           { error: "A user with this email address already exists" },
           { status: 409 },
@@ -75,6 +84,7 @@ export async function PATCH(request: Request) {
         email: normalizedEmail,
       });
       if (emailError) {
+        logger.error({ route: "PATCH /api/profile", userId: user.id, err: emailError }, "Failed to update auth email");
         return NextResponse.json({ error: emailError.message }, { status: 500 });
       }
       updates.email = normalizedEmail;
@@ -102,6 +112,7 @@ export async function PATCH(request: Request) {
       .eq("id", user.id);
 
     if (profileError) {
+      logger.error({ route: "PATCH /api/profile", userId: user.id, err: profileError }, "Failed to update profile");
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
   }
@@ -113,5 +124,6 @@ export async function PATCH(request: Request) {
     });
   }
 
+  logger.info({ route: "PATCH /api/profile", userId: user.id }, "Profile updated");
   return NextResponse.json({ success: true });
 }

@@ -4,12 +4,14 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getRpIDFromHeaders, rpName } from "@/lib/passkey";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // 10 registration attempts per 5 minutes per IP
 const limiter = createRateLimiter({ windowMs: 5 * 60_000, max: 10 });
 
 export async function GET(request: Request) {
   if (!limiter.check(getClientIp(request))) {
+    logger.warn({ route: 'GET /api/auth/passkey/register' }, 'Rate limit exceeded');
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -19,6 +21,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/auth/passkey/register' }, 'Unauthenticated');
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -34,29 +37,35 @@ export async function GET(request: Request) {
   const headerList = await headers();
   const rpID = getRpIDFromHeaders(headerList);
 
-  const options = await generateRegistrationOptions({
-    rpName,
-    rpID,
-    userName: user.email || user.id,
-    userID: new TextEncoder().encode(user.id),
-    attestationType: "none",
-    excludeCredentials: allowOverwrite
-      ? []
-      : (existingCredentials || []).map((cred) => ({
-          id: cred.id,
-        })),
-    authenticatorSelection: {
-      residentKey: "preferred",
-      userVerification: "preferred",
-    },
-  });
+  try {
+    const options = await generateRegistrationOptions({
+      rpName,
+      rpID,
+      userName: user.email || user.id,
+      userID: new TextEncoder().encode(user.id),
+      attestationType: "none",
+      excludeCredentials: allowOverwrite
+        ? []
+        : (existingCredentials || []).map((cred) => ({
+            id: cred.id,
+          })),
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "preferred",
+      },
+    });
 
-  // Store the challenge in the user's session metadata for verification
-  // Using a server-side approach: store in a temporary way
-  // We'll use Supabase to store the challenge temporarily
-  await supabase.auth.updateUser({
-    data: { webauthn_challenge: options.challenge },
-  });
+    // Store the challenge in the user's session metadata for verification
+    // Using a server-side approach: store in a temporary way
+    // We'll use Supabase to store the challenge temporarily
+    await supabase.auth.updateUser({
+      data: { webauthn_challenge: options.challenge },
+    });
 
-  return NextResponse.json(options);
+    return NextResponse.json(options);
+  } catch (err) {
+    logger.error({ route: 'GET /api/auth/passkey/register', userId: user.id, err }, 'Failed to generate registration options');
+    const message = err instanceof Error ? err.message : "Failed to generate options";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

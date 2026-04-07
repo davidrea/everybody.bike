@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseCsv } from "@/lib/csv-parser";
 import type { CsvImportResult } from "@/types";
+import { logger } from "@/lib/logger";
 
 // Roles that may be assigned via CSV import.
 // super_admin is intentionally excluded — it can only be granted via the
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/admin/import/commit' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'POST /api/admin/import/commit', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -37,6 +40,7 @@ export async function POST(request: Request) {
   const { csv_text, import_type } = body;
 
   if (!csv_text || !import_type) {
+    logger.warn({ route: 'POST /api/admin/import/commit', userId: user.id }, 'Missing csv_text or import_type');
     return NextResponse.json(
       { error: "csv_text and import_type are required" },
       { status: 400 },
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
     return handleAdultCommit(supabase, admin, rows, user.id);
   }
 
+  logger.warn({ route: 'POST /api/admin/import/commit', userId: user.id, import_type }, 'Invalid import_type');
   return NextResponse.json(
     { error: 'import_type must be "riders" or "adults"' },
     { status: 400 },
@@ -149,6 +154,7 @@ async function handleRiderCommit(
           .single();
 
         if (error || !newRider) {
+          logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err: error, rowNum }, 'Failed to insert rider');
           result.errors.push({ row: rowNum, message: error?.message ?? "Insert failed" });
           result.skipped++;
           continue;
@@ -198,6 +204,7 @@ async function handleRiderCommit(
             });
 
           if (authError || !authData.user) {
+            logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err: authError, rowNum, email }, 'Failed to create parent user');
             result.errors.push({
               row: rowNum,
               message: `Failed to create parent ${email}: ${authError?.message}`,
@@ -220,6 +227,7 @@ async function handleRiderCommit(
 
           // Send invite
           await admin.auth.admin.inviteUserByEmail(email);
+          logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, invitedUserId: parentId, email }, 'Parent invited via CSV import');
           result.invites_sent++;
         }
 
@@ -237,6 +245,7 @@ async function handleRiderCommit(
           );
       }
     } catch (err) {
+      logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err, rowNum }, 'Unexpected error processing rider row');
       result.errors.push({
         row: rowNum,
         message: err instanceof Error ? err.message : "Unexpected error",
@@ -245,6 +254,7 @@ async function handleRiderCommit(
     }
   }
 
+  logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, created: result.created, updated: result.updated, skipped: result.skipped, invites_sent: result.invites_sent }, 'Rider CSV import complete');
   return NextResponse.json(result);
 }
 
@@ -319,6 +329,7 @@ async function handleAdultCommit(
           });
 
         if (authError || !authData.user) {
+          logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err: authError, rowNum, email }, 'Failed to create adult user');
           result.errors.push({
             row: rowNum,
             message: `Failed to create user: ${authError?.message}`,
@@ -339,10 +350,12 @@ async function handleAdultCommit(
           .eq("id", authData.user.id);
 
         await admin.auth.admin.inviteUserByEmail(email);
+        logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, invitedUserId: authData.user.id, email }, 'Adult invited via CSV import');
         result.invites_sent++;
         result.created++;
       }
     } catch (err) {
+      logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err, rowNum }, 'Unexpected error processing adult row');
       result.errors.push({
         row: rowNum,
         message: err instanceof Error ? err.message : "Unexpected error",
@@ -351,5 +364,6 @@ async function handleAdultCommit(
     }
   }
 
+  logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, created: result.created, updated: result.updated, skipped: result.skipped, invites_sent: result.invites_sent }, 'Adult CSV import complete');
   return NextResponse.json(result);
 }

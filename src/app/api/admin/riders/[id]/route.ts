@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger";
 
 export async function PATCH(
   request: Request,
@@ -12,6 +13,7 @@ export async function PATCH(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'PATCH /api/admin/riders/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -26,6 +28,7 @@ export async function PATCH(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'PATCH /api/admin/riders/[id]', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -33,6 +36,7 @@ export async function PATCH(
   const { group_id } = body;
 
   if (!group_id || typeof group_id !== "string") {
+    logger.warn({ route: 'PATCH /api/admin/riders/[id]', userId: user.id, riderId: id }, 'Missing or invalid group_id');
     return NextResponse.json(
       { error: "group_id is required" },
       { status: 400 },
@@ -47,6 +51,7 @@ export async function PATCH(
     .single();
 
   if (!group) {
+    logger.warn({ route: 'PATCH /api/admin/riders/[id]', userId: user.id, riderId: id, groupId: group_id }, 'Group not found');
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
 
@@ -56,8 +61,10 @@ export async function PATCH(
     .eq("id", id);
 
   if (error) {
+    logger.error({ route: 'PATCH /api/admin/riders/[id]', userId: user.id, riderId: id, err: error }, 'Failed to update rider group');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logger.info({ route: 'PATCH /api/admin/riders/[id]', userId: user.id, riderId: id, groupId: group_id }, 'Rider group updated');
   return NextResponse.json({ success: true });
 }

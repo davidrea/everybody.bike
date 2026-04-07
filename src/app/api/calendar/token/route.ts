@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   const supabase = await createClient();
@@ -9,6 +10,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "GET /api/calendar/token" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -19,6 +21,7 @@ export async function GET() {
     .single();
 
   if (!profile) {
+    logger.warn({ route: "GET /api/calendar/token", userId: user.id }, "Profile not found");
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
@@ -33,6 +36,7 @@ export async function POST() {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: "POST /api/calendar/token" }, "Unauthenticated");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,8 +49,10 @@ export async function POST() {
     .single();
 
   if (error) {
+    logger.error({ route: "POST /api/calendar/token", userId: user.id, err: error }, "Failed to regenerate calendar token");
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logger.info({ route: "POST /api/calendar/token", userId: user.id }, "Calendar token regenerated");
   return NextResponse.json({ token: data.calendar_token });
 }

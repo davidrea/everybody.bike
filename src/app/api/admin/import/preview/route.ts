@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseCsv } from "@/lib/csv-parser";
 import { csvRiderRowSchema, csvAdultRowSchema } from "@/lib/validators";
 import type { CsvPreviewRow } from "@/types";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/admin/import/preview' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -25,6 +27,7 @@ export async function POST(request: Request) {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'POST /api/admin/import/preview', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -32,6 +35,7 @@ export async function POST(request: Request) {
   const { csv_text, import_type } = body;
 
   if (!csv_text || !import_type) {
+    logger.warn({ route: 'POST /api/admin/import/preview', userId: user.id }, 'Missing csv_text or import_type');
     return NextResponse.json(
       { error: "csv_text and import_type are required" },
       { status: 400 },
@@ -41,6 +45,7 @@ export async function POST(request: Request) {
   const { headers, rows } = parseCsv(csv_text);
 
   if (rows.length === 0) {
+    logger.warn({ route: 'POST /api/admin/import/preview', userId: user.id }, 'CSV has no data rows');
     return NextResponse.json(
       { error: "CSV has no data rows" },
       { status: 400 },
@@ -53,6 +58,7 @@ export async function POST(request: Request) {
     return handleAdultPreview(supabase, headers, rows);
   }
 
+  logger.warn({ route: 'POST /api/admin/import/preview', userId: user.id, import_type }, 'Invalid import_type');
   return NextResponse.json(
     { error: 'import_type must be "riders" or "adults"' },
     { status: 400 },

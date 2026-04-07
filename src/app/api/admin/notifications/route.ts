@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { scheduledNotificationSchema } from "@/lib/validators";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   const supabase = await createClient();
@@ -9,6 +10,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/admin/notifications' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -23,6 +25,7 @@ export async function GET() {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'GET /api/admin/notifications', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -32,6 +35,7 @@ export async function GET() {
     .order("scheduled_for", { ascending: false });
 
   if (error) {
+    logger.error({ route: 'GET /api/admin/notifications', userId: user.id, err: error }, 'Failed to fetch scheduled notifications');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'POST /api/admin/notifications' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -59,6 +64,7 @@ export async function POST(request: Request) {
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'POST /api/admin/notifications', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -66,6 +72,7 @@ export async function POST(request: Request) {
   const parsed = scheduledNotificationSchema.safeParse(body);
 
   if (!parsed.success) {
+    logger.warn({ route: 'POST /api/admin/notifications', userId: user.id }, 'Validation failed');
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -100,8 +107,10 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
+    logger.error({ route: 'POST /api/admin/notifications', userId: user.id, err: error }, 'Failed to create scheduled notification');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logger.info({ route: 'POST /api/admin/notifications', userId: user.id, notificationId: data.id }, 'Scheduled notification created');
   return NextResponse.json(data, { status: 201 });
 }

@@ -5,7 +5,9 @@ import { sendEmail, isEmailConfigured } from "@/lib/email";
 import { getBaseUrl } from "@/lib/url";
 import { renderBrandedEmail } from "@/lib/email-template";
 import { timingSafeEqual } from "crypto";
+import { logger } from "@/lib/logger";
 
+const ROUTE = 'POST /api/admin/notifications/dispatch';
 const MAX_BATCH = 25;
 
 export const runtime = "nodejs";
@@ -294,7 +296,7 @@ function isSafeHttpUrl(url: string): boolean {
 export async function POST(request: Request) {
   const secret = process.env.NOTIFICATION_DISPATCH_SECRET;
   if (!secret) {
-    console.error("[dispatch] NOTIFICATION_DISPATCH_SECRET is not configured");
+    logger.error({ route: ROUTE }, 'NOTIFICATION_DISPATCH_SECRET is not configured');
     return NextResponse.json(
       { error: "NOTIFICATION_DISPATCH_SECRET is not configured" },
       { status: 500 },
@@ -308,7 +310,7 @@ export async function POST(request: Request) {
     authHeader.length !== expected.length ||
     !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
   ) {
-    console.warn("[dispatch] Unauthorized request");
+    logger.warn({ route: ROUTE }, 'Unauthorized request');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -324,11 +326,12 @@ export async function POST(request: Request) {
     .limit(MAX_BATCH);
 
   if (error) {
+    logger.error({ route: ROUTE, err: error }, 'Failed to fetch scheduled notifications');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if (!scheduled || scheduled.length === 0) {
-    console.log("[dispatch] No pending notifications");
+    logger.info({ route: ROUTE }, 'No pending notifications');
     return NextResponse.json({ processed: 0 });
   }
 
@@ -437,7 +440,7 @@ export async function POST(request: Request) {
     email_skipped: emailSkipped,
   };
 
-  console.log(`[dispatch] Processed ${result.processed} notification(s): ${result.sent} push sent, ${result.failed} push failed, ${result.email_sent} email sent, ${result.email_failed} email failed, ${result.email_skipped} email skipped, ${result.removed_subscriptions} stale subscriptions removed`);
+  logger.info({ route: ROUTE, ...result }, 'Dispatch complete');
 
   return NextResponse.json(result);
 }

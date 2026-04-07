@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { eventSchema } from "@/lib/validators";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   _request: Request,
@@ -13,6 +14,7 @@ export async function GET(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'GET /api/events/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -25,6 +27,7 @@ export async function GET(
     .single();
 
   if (error) {
+    logger.error({ route: 'GET /api/events/[id]', userId: user.id, err: error }, 'Failed to fetch event');
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
@@ -42,6 +45,7 @@ export async function PUT(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'PUT /api/events/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -56,6 +60,7 @@ export async function PUT(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'PUT /api/events/[id]', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -64,6 +69,7 @@ export async function PUT(
 
   const parsed = eventSchema.safeParse(body);
   if (!parsed.success) {
+    logger.warn({ route: 'PUT /api/events/[id]', userId: user.id }, 'Validation failed');
     return NextResponse.json(
       { error: "Validation failed", details: parsed.error.flatten() },
       { status: 400 },
@@ -111,6 +117,7 @@ export async function PUT(
       .gte("starts_at", event.starts_at);
 
     if (fetchError) {
+      logger.error({ route: 'PUT /api/events/[id]', userId: user.id, err: fetchError }, 'Failed to fetch series events');
       return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
@@ -168,6 +175,7 @@ export async function PUT(
       }
     }
 
+    logger.info({ route: 'PUT /api/events/[id]', userId: user.id, eventId: id, mode: 'series' }, 'Event series updated');
     return NextResponse.json({ success: true, mode: "series" });
   }
 
@@ -178,6 +186,7 @@ export async function PUT(
     .eq("id", id);
 
   if (error) {
+    logger.error({ route: 'PUT /api/events/[id]', userId: user.id, eventId: id, err: error }, 'Failed to update event');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -191,6 +200,7 @@ export async function PUT(
     await supabase.from("event_groups").insert(newGroups);
   }
 
+  logger.info({ route: 'PUT /api/events/[id]', userId: user.id, eventId: id, mode: 'single' }, 'Event updated');
   return NextResponse.json({ success: true, mode: "single" });
 }
 
@@ -205,6 +215,7 @@ export async function DELETE(
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logger.warn({ route: 'DELETE /api/events/[id]' }, 'Unauthenticated');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -219,6 +230,7 @@ export async function DELETE(
     profile?.roles?.includes("super_admin");
 
   if (!isAdmin) {
+    logger.warn({ route: 'DELETE /api/events/[id]', userId: user.id }, 'Forbidden: not admin');
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -246,9 +258,11 @@ export async function DELETE(
       .gte("starts_at", event.starts_at);
 
     if (error) {
+      logger.error({ route: 'DELETE /api/events/[id]', userId: user.id, eventId: id, err: error }, 'Failed to delete event series');
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    logger.info({ route: 'DELETE /api/events/[id]', userId: user.id, eventId: id, mode: 'series' }, 'Event series deleted');
     return NextResponse.json({ success: true, mode: "series" });
   }
 
@@ -256,8 +270,10 @@ export async function DELETE(
   const { error } = await supabase.from("events").delete().eq("id", id);
 
   if (error) {
+    logger.error({ route: 'DELETE /api/events/[id]', userId: user.id, eventId: id, err: error }, 'Failed to delete event');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logger.info({ route: 'DELETE /api/events/[id]', userId: user.id, eventId: id, mode: 'single' }, 'Event deleted');
   return NextResponse.json({ success: true, mode: "single" });
 }
