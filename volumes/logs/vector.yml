@@ -152,6 +152,13 @@ transforms:
       }
       .metadata.parsed.error_severity = upcase!(.metadata.parsed.error_severity)
 
+  # === everybody.bike app logs ===
+  app_logs:
+    type: filter
+    inputs:
+      - project_logs
+    condition: '.appname == "everybody-bike-app"'
+
 sinks:
   logflare_auth:
     type: 'http'
@@ -226,3 +233,16 @@ sinks:
       headers:
         x-api-key: ${LOGFLARE_PUBLIC_ACCESS_TOKEN?LOGFLARE_PUBLIC_ACCESS_TOKEN is required}
     uri: 'http://analytics:4000/api/logs?source_name=cloudflare.logs.prod'
+
+  # === everybody.bike app logs → Loki ===
+  loki_app:
+    type: loki
+    inputs:
+      - app_logs
+    endpoint: http://loki:3100
+    encoding:
+      codec: json
+    labels:
+      service: everybody-bike-app
+      env: production
+    out_of_order_action: rewrite_timestamp
