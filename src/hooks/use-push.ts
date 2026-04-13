@@ -21,6 +21,8 @@ async function getExistingSubscription() {
   return registration.pushManager.getSubscription();
 }
 
+const SYNCED_ENDPOINT_KEY = "push-subscription-synced-endpoint";
+
 export function usePushSubscription() {
   const [state, setState] = useState<PushState>({
     supported: false,
@@ -47,14 +49,24 @@ export function usePushSubscription() {
         await registerServiceWorker();
         const existing = await getExistingSubscription();
         if (existing) {
-          await fetch("/api/notifications/subscribe", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              subscription: existing.toJSON(),
-              user_agent: navigator.userAgent,
-            }),
-          });
+          // Re-sync the existing subscription to the server, but only once per
+          // session per endpoint — otherwise every page load hits the rate limiter.
+          const alreadySynced =
+            typeof window !== "undefined" &&
+            window.sessionStorage.getItem(SYNCED_ENDPOINT_KEY) === existing.endpoint;
+          if (!alreadySynced) {
+            const res = await fetch("/api/notifications/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                subscription: existing.toJSON(),
+                user_agent: navigator.userAgent,
+              }),
+            });
+            if (res.ok && typeof window !== "undefined") {
+              window.sessionStorage.setItem(SYNCED_ENDPOINT_KEY, existing.endpoint);
+            }
+          }
         }
         setState((prev) => ({ ...prev, subscription: existing }));
       } catch (err) {
@@ -112,6 +124,10 @@ export function usePushSubscription() {
         throw new Error(err.error ?? "Failed to save subscription");
       }
 
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(SYNCED_ENDPOINT_KEY, subscription.endpoint);
+      }
+
       setState((prev) => ({
         ...prev,
         isLoading: false,
@@ -141,6 +157,9 @@ export function usePushSubscription() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(SYNCED_ENDPOINT_KEY);
+        }
       }
 
       setState((prev) => ({
