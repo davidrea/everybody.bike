@@ -62,7 +62,7 @@ dev-db-reset:
 
 # Apply pending migrations (local)
 dev-db-migrate:
-    npx supabase db push
+    npx supabase db push --local
 
 # Create a new migration file
 dev-db-migration-new name:
@@ -70,7 +70,7 @@ dev-db-migration-new name:
 
 # List migrations and their status
 dev-db-migration-list:
-    npx supabase migration list
+    npx supabase migration list --local
 
 # Regenerate Supabase TypeScript types
 dev-db-types:
