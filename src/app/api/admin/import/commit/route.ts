@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseCsv } from "@/lib/csv-parser";
-import type { CsvImportResult } from "@/types";
+import type { CsvImportResult, RootzImportResult } from "@/types";
 import { logger } from "@/lib/logger";
 
 // Roles that may be assigned via CSV import.
@@ -54,11 +54,14 @@ export async function POST(request: Request) {
     return handleRiderCommit(supabase, admin, rows, user.id);
   } else if (import_type === "adults") {
     return handleAdultCommit(supabase, admin, rows, user.id);
+  } else if (import_type === "rootz_master") {
+    const parentNameOverrides: Record<string, string> = body.parent_name_overrides ?? {};
+    return handleRootzMasterCommit(supabase, admin, rows, user.id, parentNameOverrides);
   }
 
   logger.warn({ route: 'POST /api/admin/import/commit', userId: user.id, import_type }, 'Invalid import_type');
   return NextResponse.json(
-    { error: 'import_type must be "riders" or "adults"' },
+    { error: 'import_type must be "riders", "adults", or "rootz_master"' },
     { status: 400 },
   );
 }
@@ -365,5 +368,337 @@ async function handleAdultCommit(
   }
 
   logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, created: result.created, updated: result.updated, skipped: result.skipped, invites_sent: result.invites_sent }, 'Adult CSV import complete');
+  return NextResponse.json(result);
+}
+
+// ─── ROOTZ Master Commit ──────────────────────────────────────
+
+function classifyRootzRow(row: Record<string, string>): "adult_rider" | "minor_rider" | "unknown" {
+  const category = (row.category_entered ?? "").toLowerCase();
+  if (category.includes("adult rider")) return "adult_rider";
+  if (category.includes("youth rider") || category.includes("18 and under")) return "minor_rider";
+  const age = parseInt(row.age_on_event_day ?? "", 10);
+  if (!isNaN(age)) return age >= 18 ? "adult_rider" : "minor_rider";
+  return "unknown";
+}
+
+function parseDateOfBirth(dob: string): string | null {
+  const parts = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!parts) return null;
+  const month = parts[1].padStart(2, "0");
+  const day = parts[2].padStart(2, "0");
+  return `${parts[3]}-${month}-${day}`;
+}
+
+function parseMediaOptOut(mediaValue: string): boolean {
+  const lower = mediaValue.toLowerCase().trim();
+  return lower === "no" || lower.startsWith("no ");
+}
+
+function extractMedicalNotes(row: Record<string, string>): string | null {
+  const medsYesNo = (row.meds_yes_no ?? "").toLowerCase();
+  const medical = (row.medical ?? "").trim();
+  if (medsYesNo.includes("yes") || (medical !== "" && medical.toLowerCase() !== "none" && medical.toLowerCase() !== "n/a" && medical.toLowerCase() !== "na")) {
+    return medical || null;
+  }
+  return null;
+}
+
+function inferParentName(
+  row: Record<string, string>,
+  email: string,
+): string {
+  const emergencyContact = (row.emergency_contact ?? "").trim();
+  const lastName = (row.last_name ?? "").trim();
+
+  if (emergencyContact.length > 2 && /[a-z]/i.test(emergencyContact)) {
+    return emergencyContact;
+  }
+
+  const localPart = email.split("@")[0].replace(/[._0-9]+/g, " ").trim();
+  if (localPart.length > 2) {
+    return localPart
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+  }
+
+  return `${lastName} Parent`;
+}
+
+async function handleRootzMasterCommit(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  admin: ReturnType<typeof createAdminClient>,
+  rows: Record<string, string>[],
+  invitedBy: string,
+  parentNameOverrides: Record<string, string>,
+) {
+  const result: RootzImportResult = {
+    adult_riders_created: 0,
+    adult_riders_updated: 0,
+    minor_riders_created: 0,
+    minor_riders_updated: 0,
+    parents_created: 0,
+    skipped: 0,
+    errors: [],
+    invites_sent: 0,
+  };
+
+  // Load existing profiles
+  const { data: existingProfiles } = await supabase
+    .from("profiles")
+    .select("id, email, roles, full_name");
+  const profilesByEmail = new Map(
+    (existingProfiles ?? []).map((p) => [p.email.toLowerCase(), p]),
+  );
+
+  // Load existing riders for dedup
+  const { data: existingRiders } = await supabase
+    .from("riders")
+    .select("id, first_name, last_name, date_of_birth");
+
+  // Partition rows: process adult riders first, then minors
+  const adultRows: { row: Record<string, string>; index: number }[] = [];
+  const minorRows: { row: Record<string, string>; index: number }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const classification = classifyRootzRow(rows[i]);
+    if (classification === "adult_rider") {
+      adultRows.push({ row: rows[i], index: i });
+    } else if (classification === "minor_rider") {
+      minorRows.push({ row: rows[i], index: i });
+    } else {
+      result.errors.push({ row: i + 2, message: `Cannot classify row by category: "${rows[i].category_entered ?? ""}"` });
+      result.skipped++;
+    }
+  }
+
+  // ── Pass 1: Adult riders ──────────────────────────────────────
+
+  for (const { row, index } of adultRows) {
+    const rowNum = index + 2;
+    try {
+      const firstName = (row.first_name ?? "").trim();
+      const lastName = (row.last_name ?? "").trim();
+      const email = (row.email ?? "").trim().toLowerCase();
+      const fullName = `${firstName} ${lastName}`;
+
+      if (!firstName || !lastName || !email) {
+        result.errors.push({ row: rowNum, message: "Missing required fields" });
+        result.skipped++;
+        continue;
+      }
+
+      const medicalNotes = extractMedicalNotes(row);
+      const mediaOptOut = parseMediaOptOut(row.media ?? "");
+
+      const existing = profilesByEmail.get(email);
+
+      if (existing) {
+        // Update: add rider role if not present, update medical/media
+        const roles = existing.roles.includes("rider")
+          ? existing.roles
+          : [...existing.roles, "rider"];
+        const updates: Record<string, unknown> = {
+          roles,
+          full_name: fullName,
+          media_opt_out: mediaOptOut,
+        };
+        if (medicalNotes) {
+          updates.medical_alerts = medicalNotes;
+        }
+        await admin.from("profiles").update(updates).eq("id", existing.id);
+        // Update local cache so minor rows can find this profile
+        profilesByEmail.set(email, { ...existing, roles, full_name: fullName });
+        result.adult_riders_updated++;
+      } else {
+        // Create new user
+        const { data: authData, error: authError } =
+          await admin.auth.admin.createUser({
+            email,
+            email_confirm: false,
+            user_metadata: { full_name: fullName },
+          });
+
+        if (authError || !authData.user) {
+          logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err: authError, rowNum, email }, 'Failed to create adult rider');
+          result.errors.push({ row: rowNum, message: `Failed to create user: ${authError?.message}` });
+          result.skipped++;
+          continue;
+        }
+
+        const profileUpdate: Record<string, unknown> = {
+          full_name: fullName,
+          roles: ["rider"],
+          invite_status: "pending",
+          invited_at: new Date().toISOString(),
+          invited_by: invitedBy,
+          media_opt_out: mediaOptOut,
+        };
+        if (medicalNotes) {
+          profileUpdate.medical_alerts = medicalNotes;
+        }
+
+        await admin.from("profiles").update(profileUpdate).eq("id", authData.user.id);
+
+        await admin.auth.admin.inviteUserByEmail(email);
+        logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, invitedUserId: authData.user.id, email }, 'Adult rider invited via ROOTZ import');
+        result.invites_sent++;
+
+        // Update local cache
+        profilesByEmail.set(email, {
+          id: authData.user.id,
+          email,
+          roles: ["rider"],
+          full_name: fullName,
+        });
+        result.adult_riders_created++;
+      }
+    } catch (err) {
+      logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err, rowNum }, 'Unexpected error processing adult rider row');
+      result.errors.push({ row: rowNum, message: err instanceof Error ? err.message : "Unexpected error" });
+      result.skipped++;
+    }
+  }
+
+  // ── Pass 2: Minor riders ──────────────────────────────────────
+
+  for (const { row, index } of minorRows) {
+    const rowNum = index + 2;
+    try {
+      const firstName = (row.first_name ?? "").trim();
+      const lastName = (row.last_name ?? "").trim();
+      const email = (row.email ?? "").trim().toLowerCase();
+      const dob = parseDateOfBirth((row.date_of_birth ?? "").trim());
+
+      if (!firstName || !lastName || !email) {
+        result.errors.push({ row: rowNum, message: "Missing required fields" });
+        result.skipped++;
+        continue;
+      }
+
+      const medicalNotes = extractMedicalNotes(row);
+      const mediaOptOut = parseMediaOptOut(row.media ?? "");
+
+      // Check for existing rider (dedup by name + DOB)
+      const existingRider = (existingRiders ?? []).find(
+        (r) =>
+          r.first_name.toLowerCase() === firstName.toLowerCase() &&
+          r.last_name.toLowerCase() === lastName.toLowerCase() &&
+          r.date_of_birth === dob,
+      );
+
+      let riderId: string;
+
+      if (existingRider) {
+        // Update existing rider
+        const riderUpdate: Record<string, unknown> = {
+          media_opt_out: mediaOptOut,
+        };
+        if (medicalNotes) riderUpdate.medical_notes = medicalNotes;
+
+        await supabase.from("riders").update(riderUpdate).eq("id", existingRider.id);
+        riderId = existingRider.id;
+        result.minor_riders_updated++;
+      } else {
+        // Create new rider (group_id left null — assigned later by admin)
+        const riderInsert: Record<string, unknown> = {
+          first_name: firstName,
+          last_name: lastName,
+          date_of_birth: dob,
+          media_opt_out: mediaOptOut,
+        };
+        if (medicalNotes) riderInsert.medical_notes = medicalNotes;
+
+        const { data: newRider, error } = await supabase
+          .from("riders")
+          .insert(riderInsert)
+          .select("id")
+          .single();
+
+        if (error || !newRider) {
+          logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err: error, rowNum }, 'Failed to insert minor rider');
+          result.errors.push({ row: rowNum, message: error?.message ?? "Insert failed" });
+          result.skipped++;
+          continue;
+        }
+        riderId = newRider.id;
+        result.minor_riders_created++;
+      }
+
+      // Resolve parent profile
+      let parentProfile = profilesByEmail.get(email);
+
+      if (!parentProfile) {
+        // Determine parent name: check overrides first, then infer
+        const parentName = parentNameOverrides[email] || inferParentName(row, email);
+
+        const { data: authData, error: authError } =
+          await admin.auth.admin.createUser({
+            email,
+            email_confirm: false,
+            user_metadata: { full_name: parentName },
+          });
+
+        if (authError || !authData.user) {
+          logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err: authError, rowNum, email }, 'Failed to create parent user');
+          result.errors.push({ row: rowNum, message: `Failed to create parent ${email}: ${authError?.message}` });
+          continue;
+        }
+
+        await admin.from("profiles").update({
+          full_name: parentName,
+          roles: ["parent"],
+          invite_status: "pending",
+          invited_at: new Date().toISOString(),
+          invited_by: invitedBy,
+        }).eq("id", authData.user.id);
+
+        await admin.auth.admin.inviteUserByEmail(email);
+        logger.info({ route: 'POST /api/admin/import/commit', userId: invitedBy, invitedUserId: authData.user.id, email }, 'Parent invited via ROOTZ import');
+        result.invites_sent++;
+        result.parents_created++;
+
+        parentProfile = { id: authData.user.id, email, roles: ["parent"], full_name: parentName };
+        profilesByEmail.set(email, parentProfile);
+      } else {
+        // Ensure parent role
+        if (!parentProfile.roles.includes("parent")) {
+          const updatedRoles = [...parentProfile.roles, "parent"];
+          await admin.from("profiles").update({ roles: updatedRoles }).eq("id", parentProfile.id);
+          parentProfile = { ...parentProfile, roles: updatedRoles };
+          profilesByEmail.set(email, parentProfile);
+        }
+      }
+
+      // Link rider to parent
+      await supabase.from("rider_parents").upsert(
+        {
+          rider_id: riderId,
+          parent_id: parentProfile.id,
+          relationship: "parent",
+          is_primary: true,
+        },
+        { onConflict: "rider_id,parent_id" },
+      );
+    } catch (err) {
+      logger.error({ route: 'POST /api/admin/import/commit', userId: invitedBy, err, rowNum }, 'Unexpected error processing minor rider row');
+      result.errors.push({ row: rowNum, message: err instanceof Error ? err.message : "Unexpected error" });
+      result.skipped++;
+    }
+  }
+
+  logger.info({
+    route: 'POST /api/admin/import/commit',
+    userId: invitedBy,
+    adult_created: result.adult_riders_created,
+    adult_updated: result.adult_riders_updated,
+    minor_created: result.minor_riders_created,
+    minor_updated: result.minor_riders_updated,
+    parents_created: result.parents_created,
+    invites_sent: result.invites_sent,
+    skipped: result.skipped,
+  }, 'ROOTZ master CSV import complete');
+
   return NextResponse.json(result);
 }

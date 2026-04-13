@@ -362,7 +362,6 @@ describe("riderSchema", () => {
       ...validRider,
       date_of_birth: "2015-06-15",
       group_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      emergency_contact: "Mom: 555-1234",
       medical_notes: "Allergic to bee stings",
     });
     expect(result.success).toBe(true);
@@ -385,7 +384,6 @@ describe("riderSchema", () => {
       ...validRider,
       date_of_birth: "",
       group_id: "",
-      emergency_contact: "",
       medical_notes: "",
     });
     expect(result.success).toBe(true);
