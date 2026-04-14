@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Link2 } from "lucide-react";
+import { Link2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAdminRiders, useUpdateRiderGroup } from "@/hooks/use-admin-riders";
+import { useAdminRiders, useUpdateRiderGroup, useDeleteRider } from "@/hooks/use-admin-riders";
 import { useGroups } from "@/hooks/use-groups";
 import { useUsers } from "@/hooks/use-users";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { RiderAdultLinksDialog } from "./rider-adult-links-dialog";
 import { SafetyIndicators } from "@/components/safety/safety-indicators";
 
@@ -32,11 +42,15 @@ export function RiderList() {
   const { data: groups, isLoading: groupsLoading } = useGroups();
   const { data: adults } = useUsers();
   const updateGroup = useUpdateRiderGroup();
+  const deleteRider = useDeleteRider();
   const [managingRiderId, setManagingRiderId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const isLoading = ridersLoading || groupsLoading;
   const managingRider =
     riders?.find((rider) => rider.id === managingRiderId) ?? null;
+  const confirmDeleteRider =
+    riders?.find((rider) => rider.id === confirmDeleteId) ?? null;
 
   async function handleGroupChange(riderId: string, groupId: string) {
     try {
@@ -46,6 +60,20 @@ export function RiderList() {
       toast.error(
         err instanceof Error ? err.message : "Failed to update group",
       );
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!confirmDeleteId) return;
+    try {
+      await deleteRider.mutateAsync(confirmDeleteId);
+      toast.success("Rider deleted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete rider",
+      );
+    } finally {
+      setConfirmDeleteId(null);
     }
   }
 
@@ -134,14 +162,30 @@ export function RiderList() {
                 </div>
               </TableCell>
               <TableCell>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setManagingRiderId(rider.id)}
-                >
-                  <Link2 className="mr-1 h-4 w-4" />
-                  Manage
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setManagingRiderId(rider.id)}
+                  >
+                    <Link2 className="mr-1 h-4 w-4" />
+                    Manage
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={rider.parents.length > 0}
+                    title={
+                      rider.parents.length > 0
+                        ? "Remove all parent links before deleting"
+                        : "Delete rider"
+                    }
+                    onClick={() => setConfirmDeleteId(rider.id)}
+                    className="text-destructive hover:text-destructive disabled:opacity-30"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -164,6 +208,33 @@ export function RiderList() {
         rider={managingRider}
         adults={adults}
       />
+
+      <AlertDialog
+        open={!!confirmDeleteRider}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete rider?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <strong>
+                {confirmDeleteRider?.first_name} {confirmDeleteRider?.last_name}
+              </strong>{" "}
+              and all their event RSVPs. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

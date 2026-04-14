@@ -33,7 +33,6 @@ export async function GET() {
     .select(
       "id, first_name, last_name, date_of_birth, group_id, groups(id, name, color), rider_parents(parent_id, relationship, is_primary, profiles:parent_id(id, full_name, email, medical_alerts, media_opt_out))",
     )
-    .order("last_name")
     .order("first_name");
 
   if (error) {
@@ -55,7 +54,10 @@ export async function GET() {
     };
   };
 
-  const riders = (data ?? []).map((r) => {
+  const riders = (data ?? []).sort((a, b) =>
+    a.first_name.localeCompare(b.first_name) ||
+    a.last_name.localeCompare(b.last_name),
+  ).map((r) => {
     const group = r.groups as unknown as GroupRow;
     const parents = (r.rider_parents as unknown as ParentRow[]).slice();
     parents.sort((a, b) => {

@@ -68,3 +68,57 @@ export async function PATCH(
   logger.info({ route: 'PATCH /api/admin/riders/[id]', userId: user.id, riderId: id, groupId: group_id }, 'Rider group updated');
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    logger.warn({ route: 'DELETE /api/admin/riders/[id]' }, 'Unauthenticated');
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("roles")
+    .eq("id", user.id)
+    .single();
+
+  const isAdmin =
+    profile?.roles?.includes("admin") ||
+    profile?.roles?.includes("super_admin");
+
+  if (!isAdmin) {
+    logger.warn({ route: 'DELETE /api/admin/riders/[id]', userId: user.id }, 'Forbidden: not admin');
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Refuse if rider still has parent links
+  const { count } = await supabase
+    .from("rider_parents")
+    .select("*", { count: "exact", head: true })
+    .eq("rider_id", id);
+
+  if (count && count > 0) {
+    return NextResponse.json(
+      { error: "Cannot delete a rider who is still linked to adults. Remove all parent links first." },
+      { status: 409 },
+    );
+  }
+
+  const { error } = await supabase.from("riders").delete().eq("id", id);
+
+  if (error) {
+    logger.error({ route: 'DELETE /api/admin/riders/[id]', userId: user.id, riderId: id, err: error }, 'Failed to delete rider');
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  logger.info({ route: 'DELETE /api/admin/riders/[id]', userId: user.id, riderId: id }, 'Rider deleted');
+  return NextResponse.json({ success: true });
+}

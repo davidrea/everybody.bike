@@ -139,6 +139,26 @@ export function useUpdateRiderAdultLink() {
   });
 }
 
+export function useDeleteRider() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (riderId: string) => {
+      const res = await fetch(`/api/admin/riders/${riderId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to delete rider");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-riders"] });
+    },
+  });
+}
+
 export function useRemoveRiderAdultLink() {
   const qc = useQueryClient();
 

@@ -38,7 +38,7 @@ export async function GET(
     .from("riders")
     .select("id, first_name, last_name")
     .eq("group_id", id)
-    .order("last_name");
+    .order("first_name");
 
   // Adult riders in this group
   const { data: adultRiders } = await supabase
