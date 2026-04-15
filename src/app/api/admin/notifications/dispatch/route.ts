@@ -20,19 +20,6 @@ function chunk<T>(items: T[], size: number) {
   return chunks;
 }
 
-async function filterAcceptedUsers(admin: ReturnType<typeof createAdminClient>, ids: string[]) {
-  if (ids.length === 0) return [];
-  const accepted: string[] = [];
-  for (const batch of chunk(ids, 500)) {
-    const { data } = await admin
-      .from("profiles")
-      .select("id")
-      .in("id", batch)
-      .eq("invite_status", "accepted");
-    if (data) accepted.push(...data.map((row) => row.id));
-  }
-  return accepted;
-}
 
 async function getGroupAdultAudience(admin: ReturnType<typeof createAdminClient>, groupIds: string[]) {
   const ids = new Set<string>();
@@ -165,30 +152,29 @@ async function getTargetUsers(
     case "all": {
       const { data } = await admin
         .from("profiles")
-        .select("id")
-        .eq("invite_status", "accepted");
+        .select("id");
       return data?.map((row) => row.id) ?? [];
     }
     case "group": {
       if (!notification.target_id) return [];
       const ids = await getGroupAudience(admin, notification.target_id);
-      return filterAcceptedUsers(admin, ids);
+      return ids;
     }
     case "event_rsvpd": {
       if (!notification.target_id) return [];
       const rsvps = await getEventRsvps(admin, notification.target_id);
       const ids = Array.from(new Set(rsvps.map((row) => row.user_id)));
-      return filterAcceptedUsers(admin, ids);
+      return ids;
     }
     case "event_all": {
       if (!notification.target_id) return [];
       const ids = await getEventAudience(admin, notification.target_id);
-      return filterAcceptedUsers(admin, ids);
+      return ids;
     }
     case "event_not_rsvpd": {
       if (!notification.target_id) return [];
       const ids = await getEventNotRsvpdAudience(admin, notification.target_id);
-      return filterAcceptedUsers(admin, ids);
+      return ids;
     }
     default:
       return [];
