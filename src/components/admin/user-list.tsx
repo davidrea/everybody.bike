@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { UserPlus, RotateCw, Settings, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -26,6 +26,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { InviteForm } from "./invite-form";
 import { AdultEditor } from "./adult-editor";
 import { SafetyIndicators } from "@/components/safety/safety-indicators";
@@ -73,6 +80,20 @@ export function UserList() {
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminProfile | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminProfile | null>(null);
+  const [filterRole, setFilterRole] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPush, setFilterPush] = useState<string>("all");
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    return users.filter((user) => {
+      if (filterRole !== "all" && !user.roles.includes(filterRole)) return false;
+      if (filterStatus !== "all" && user.invite_status !== filterStatus) return false;
+      if (filterPush === "on" && !user.push_enabled) return false;
+      if (filterPush === "off" && user.push_enabled) return false;
+      return true;
+    });
+  }, [users, filterRole, filterStatus, filterPush]);
 
   async function handleInvite(values: InviteFormValues) {
     try {
@@ -193,7 +214,42 @@ export function UserList() {
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <Select value={filterRole} onValueChange={setFilterRole}>
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue placeholder="Role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="super_admin">Super Admin</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="roll_model">Roll Model</SelectItem>
+              <SelectItem value="parent">Parent</SelectItem>
+              <SelectItem value="rider">Rider</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="accepted">Accepted</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterPush} onValueChange={setFilterPush}>
+            <SelectTrigger className="h-9 w-36">
+              <SelectValue placeholder="Push" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Push</SelectItem>
+              <SelectItem value="on">Push On</SelectItem>
+              <SelectItem value="off">Push Off</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Button onClick={() => setShowInvite(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
           Invite User
@@ -202,7 +258,7 @@ export function UserList() {
 
       <div className="rounded-md border">
         <div className="divide-y md:hidden">
-          {users?.map((user) => (
+          {filteredUsers.map((user) => (
             <div key={user.id} className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -292,9 +348,9 @@ export function UserList() {
               </div>
             </div>
           ))}
-          {users?.length === 0 && (
+          {filteredUsers.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">
-              No users found.
+              {users?.length === 0 ? "No users yet. Send your first invite." : "No users match the selected filters."}
             </div>
           )}
         </div>
@@ -310,7 +366,7 @@ export function UserList() {
             </TableRow>
           </TableHeader>
           <TableBody className="hidden md:table-row-group">
-            {users?.map((user) => (
+            {filteredUsers.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">
                   <span className="inline-flex items-center gap-2">
@@ -402,13 +458,13 @@ export function UserList() {
                 </TableCell>
               </TableRow>
             ))}
-            {users?.length === 0 && (
+            {filteredUsers.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={6}
                   className="py-8 text-center text-muted-foreground"
                 >
-                  No users yet. Send your first invite.
+                  {users?.length === 0 ? "No users yet. Send your first invite." : "No users match the selected filters."}
                 </TableCell>
               </TableRow>
             )}
