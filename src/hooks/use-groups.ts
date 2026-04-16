@@ -121,6 +121,28 @@ export function useAssignMember() {
   });
 }
 
+export function useReorderGroups() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      const res = await fetch("/api/groups/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to reorder groups");
+      }
+      return res.json();
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}
+
 export function useRemoveMember() {
   const qc = useQueryClient();
 

@@ -114,7 +114,6 @@ export async function PUT(
       name: parsed.data.name,
       color: parsed.data.color,
       description: parsed.data.description || null,
-      sort_order: parsed.data.sort_order,
     })
     .eq("id", id)
     .select()

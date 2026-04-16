@@ -43,7 +43,6 @@ export function GroupForm({
       name: group?.name ?? "",
       color: group?.color ?? "#6B7280",
       description: group?.description ?? "",
-      sort_order: group?.sort_order ?? 0,
     },
   });
 
@@ -107,19 +106,6 @@ export function GroupForm({
                       rows={3}
                       {...field}
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="sort_order"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sort Order</FormLabel>
-                  <FormControl>
-                    <Input type="number" min={0} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

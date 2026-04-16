@@ -65,13 +65,22 @@ export async function POST(request: Request) {
     );
   }
 
+  const { data: maxRow } = await supabase
+    .from("groups")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+
+  const nextSortOrder = maxRow ? (maxRow.sort_order ?? 0) + 1 : 0;
+
   const { data, error } = await supabase
     .from("groups")
     .insert({
       name: parsed.data.name,
       color: parsed.data.color,
       description: parsed.data.description || null,
-      sort_order: parsed.data.sort_order,
+      sort_order: nextSortOrder,
     })
     .select()
     .single();
