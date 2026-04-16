@@ -90,39 +90,6 @@ export const riderSchema = z.object({
 
 export type RiderFormValues = z.infer<typeof riderSchema>;
 
-// ─── CSV Import ────────────────────────────────────────────────
-
-export const csvRiderRowSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  date_of_birth: z.string().optional(),
-  group_name: z.string().min(1, "Group name is required"),
-  parent_emails: z.string().min(1, "At least one parent email is required"),
-  parent_names: z.string().optional(),
-});
-
-export const csvAdultRowSchema = z.object({
-  full_name: z.string().min(1, "Full name is required"),
-  email: z.string().email("Must be a valid email"),
-  roles: z.string().min(1, "At least one role is required"),
-});
-
-// ─── ROOTZ Master CSV ─────────────────────────────────────────
-
-/** Validates a single row from the ROOTZ master registration CSV. */
-export const rootzMasterRowSchema = z.object({
-  last_name: z.string().min(1, "Last name is required"),
-  first_name: z.string().min(1, "First name is required"),
-  date_of_birth: z.string().min(1, "Date of birth is required"),
-  email: z.string().min(1, "Email is required"),
-  emergency_contact: z.string().optional().default(""),  // used only for parent name inference
-  category_entered: z.string().min(1, "Category is required"),
-  riders_level: z.string().optional().default(""),
-  medical: z.string().optional().default(""),
-  meds_yes_no: z.string().optional().default(""),
-  media: z.string().optional().default(""),
-});
-
 // ─── Role Update ───────────────────────────────────────────────
 
 export const roleUpdateSchema = z.object({

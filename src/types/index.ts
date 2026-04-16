@@ -88,55 +88,6 @@ export interface GroupWithMembers extends Group {
   roll_models: Pick<Profile, "id" | "full_name" | "email">[];
 }
 
-// ─── CSV Import Types ─────────────────────────────────────────
-
-export interface CsvPreviewRow {
-  row_number: number;
-  data: Record<string, string>;
-  action: "create" | "update" | "skip";
-  errors: string[];
-}
-
-export interface RootzPreviewRow {
-  row_number: number;
-  data: Record<string, string>;
-  classification: "adult_rider" | "minor_rider" | "unknown";
-  action: "create" | "update" | "skip";
-  errors: string[];
-  warnings: string[];
-  /** For minor rows: how the parent was resolved */
-  parent_resolution?: "existing_profile" | "adult_in_csv" | "new_invite";
-  /** Inferred parent name (may be guessed from emergency contact or email) */
-  inferred_parent_name?: string;
-  /** Whether the parent name was guessed vs explicitly matched */
-  parent_name_guessed?: boolean;
-  /** Parsed rider level from the CSV */
-  riders_level?: string;
-  /** Whether this row has medical info to store */
-  has_medical?: boolean;
-  /** Whether media opt-out will be set */
-  media_opt_out?: boolean;
-}
-
-export interface RootzImportResult {
-  adult_riders_created: number;
-  adult_riders_updated: number;
-  minor_riders_created: number;
-  minor_riders_updated: number;
-  parents_created: number;
-  skipped: number;
-  errors: { row: number; message: string }[];
-  invites_sent: number;
-}
-
-export interface CsvImportResult {
-  created: number;
-  updated: number;
-  skipped: number;
-  errors: { row: number; message: string }[];
-  invites_sent: number;
-}
-
 // ─── Event Dashboard Types ────────────────────────────────────
 
 export interface DashboardRollModel {
