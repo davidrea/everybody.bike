@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUpcomingEvents } from "@/hooks/use-events";
 import { useAuth } from "@/hooks/use-auth";
+import { useMyRsvpsBulk } from "@/hooks/use-rsvp";
 import { EventCard } from "@/components/events/event-card";
 import type { EventWithGroups } from "@/types";
 import Link from "next/link";
@@ -53,6 +54,9 @@ export default function DashboardPage() {
   const { profile, loading: authLoading, isAdmin, hasRole } = useAuth();
   const { data: upcomingEvents, isLoading: eventsLoading } =
     useUpcomingEvents();
+
+  const upcomingEventIds = useMemo(() => upcomingEvents?.map((e) => e.id) ?? [], [upcomingEvents]);
+  const { data: rsvpMap } = useMyRsvpsBulk(upcomingEventIds, profile?.id);
 
   const todayEvent = useMemo(() => findTodayEvent(upcomingEvents), [upcomingEvents]);
 
@@ -191,7 +195,7 @@ export default function DashboardPage() {
           ) : upcomingEvents && upcomingEvents.length > 0 ? (
             <div className="space-y-3">
               {upcomingEvents.slice(0, 5).map((event) => (
-                <EventCard key={event.id} event={event} />
+                <EventCard key={event.id} event={event} rsvpEntry={rsvpMap?.[event.id]} />
               ))}
             </div>
           ) : (

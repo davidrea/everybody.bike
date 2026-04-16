@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin, Clock, Repeat } from "lucide-react";
+import { MapPin, Clock, Repeat, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { EventTypeBadge } from "./event-type-badge";
 import { cn } from "@/lib/utils";
 import type { EventWithGroups } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import type { BulkRsvpEntry } from "@/app/api/rsvps/mine/bulk/route";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -21,12 +22,32 @@ function formatDate(dateStr: string) {
   };
 }
 
+const rsvpStatusConfig = {
+  yes: { label: "Going", icon: CheckCircle2, className: "text-green-600 dark:text-green-400" },
+  no: { label: "Not going", icon: XCircle, className: "text-red-600 dark:text-red-400" },
+  maybe: { label: "Maybe", icon: HelpCircle, className: "text-amber-600 dark:text-amber-400" },
+} as const;
+
+function RsvpStatusChip({ status, name }: { status: string; name?: string }) {
+  const config = rsvpStatusConfig[status as keyof typeof rsvpStatusConfig];
+  if (!config) return null;
+  const Icon = config.icon;
+  return (
+    <span className={cn("flex items-center gap-1 text-xs font-medium", config.className)}>
+      <Icon className="h-3.5 w-3.5" />
+      {name ? `${name}: ${config.label}` : config.label}
+    </span>
+  );
+}
+
 export function EventCard({
   event,
   variant = "default",
+  rsvpEntry,
 }: {
   event: EventWithGroups;
   variant?: "default" | "past";
+  rsvpEntry?: BulkRsvpEntry;
 }) {
   const date = formatDate(event.starts_at);
   const groups = event.event_groups?.map((eg) => eg.groups) ?? [];
@@ -100,6 +121,21 @@ export function EventCard({
                       </span>
                     ),
                 )}
+              </div>
+            )}
+
+            {rsvpEntry && (rsvpEntry.selfRsvp || rsvpEntry.minorRsvps.length > 0) && (
+              <div className="flex flex-wrap gap-3 pt-1">
+                {rsvpEntry.selfRsvp && (
+                  <RsvpStatusChip status={rsvpEntry.selfRsvp.status} />
+                )}
+                {rsvpEntry.minorRsvps.map((mr) => (
+                  <RsvpStatusChip
+                    key={mr.rider_id}
+                    status={mr.status}
+                    name={mr.riders.first_name}
+                  />
+                ))}
               </div>
             )}
           </div>

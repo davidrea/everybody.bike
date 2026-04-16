@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RsvpWithDetails, RsvpStatus } from "@/types";
+import type { BulkRsvpMap } from "@/app/api/rsvps/mine/bulk/route";
 
 export function useEventRsvps(eventId: string | undefined) {
   return useQuery({
@@ -31,6 +32,22 @@ export function useMyRsvps(eventId: string, userId: string | undefined) {
         } | null;
         minorRsvps: { id: string; status: string; rider_id: string; riders: { id: string; first_name: string; last_name: string } }[];
       }>;
+    },
+  });
+}
+
+export function useMyRsvpsBulk(eventIds: string[], userId: string | undefined) {
+  return useQuery({
+    queryKey: ["rsvps", "bulk", eventIds, userId],
+    enabled: !!userId && eventIds.length > 0,
+    queryFn: async (): Promise<BulkRsvpMap> => {
+      const res = await fetch("/api/rsvps/mine/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event_ids: eventIds }),
+      });
+      if (!res.ok) throw new Error("Failed to fetch bulk RSVPs");
+      return res.json();
     },
   });
 }
@@ -72,6 +89,7 @@ export function useSubmitRsvp() {
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["rsvps", vars.event_id] });
+      qc.invalidateQueries({ queryKey: ["rsvps", "bulk"] });
       qc.invalidateQueries({ queryKey: ["event-dashboard", vars.event_id] });
     },
   });
@@ -106,6 +124,7 @@ export function useClearRsvp() {
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["rsvps", vars.event_id] });
+      qc.invalidateQueries({ queryKey: ["rsvps", "bulk"] });
       qc.invalidateQueries({ queryKey: ["event-dashboard", vars.event_id] });
     },
   });

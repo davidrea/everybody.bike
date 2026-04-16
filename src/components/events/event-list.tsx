@@ -8,6 +8,7 @@ import { useEvents } from "@/hooks/use-events";
 import { useGroups } from "@/hooks/use-groups";
 import { useAuth } from "@/hooks/use-auth";
 import { useScheduledNotifications } from "@/hooks/use-notifications";
+import { useMyRsvpsBulk } from "@/hooks/use-rsvp";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -33,7 +34,7 @@ const typeLabels: Record<string, string> = {
 
 export function EventList() {
   const qc = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
   const admin = isAdmin();
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
@@ -52,6 +53,9 @@ export function EventList() {
     events?.filter((event) => new Date(event.starts_at) >= now) ?? [];
   const pastEvents =
     events?.filter((event) => new Date(event.starts_at) < now) ?? [];
+
+  const allEventIds = events?.map((e) => e.id) ?? [];
+  const { data: rsvpMap } = useMyRsvpsBulk(allEventIds, profile?.id);
 
   const announceNow = useMutation({
     mutationFn: async (event: { id: string; title: string }) => {
@@ -156,7 +160,7 @@ export function EventList() {
               <div className="space-y-3">
                 {upcomingEvents.map((event) => (
                   <div key={event.id} className="space-y-2">
-                    <EventCard event={event} />
+                    <EventCard event={event} rsvpEntry={rsvpMap?.[event.id]} />
                     {shouldShowOnDemandAnnouncement({
                       isAdmin: admin,
                       eventId: event.id,
@@ -197,7 +201,7 @@ export function EventList() {
               </div>
               <div className="space-y-3">
                 {pastEvents.map((event) => (
-                  <EventCard key={event.id} event={event} variant="past" />
+                  <EventCard key={event.id} event={event} variant="past" rsvpEntry={rsvpMap?.[event.id]} />
                 ))}
               </div>
             </div>
