@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UserPlus, Upload, Bell } from "lucide-react";
+import { Users, UserPlus, Bell } from "lucide-react";
 import Link from "next/link";
 
 const adminSections = [
@@ -15,12 +15,6 @@ const adminSections = [
     description: "Send invitations to new members",
     icon: UserPlus,
     href: "/admin/users",
-  },
-  {
-    title: "CSV Import",
-    description: "Bulk import riders and adults",
-    icon: Upload,
-    href: "/admin/import",
   },
   {
     title: "Notifications",

@@ -8,8 +8,6 @@ import {
   rsvpSchema,
   inviteSchema,
   riderSchema,
-  csvRiderRowSchema,
-  csvAdultRowSchema,
   roleUpdateSchema,
   notificationPreferencesSchema,
   pushSubscriptionSchema,
@@ -393,59 +391,6 @@ describe("riderSchema", () => {
     expect(
       riderSchema.safeParse({ ...validRider, medical_notes: "x".repeat(1001) }).success
     ).toBe(false);
-  });
-});
-
-// ─── CSV Schemas ────────────────────────────────────────────────
-
-describe("csvRiderRowSchema", () => {
-  const validRow = {
-    first_name: "Sam",
-    last_name: "Lee",
-    group_name: "Shredders",
-    parent_emails: "parent@example.com",
-  };
-
-  it("accepts a valid rider CSV row", () => {
-    expect(csvRiderRowSchema.safeParse(validRow).success).toBe(true);
-  });
-
-  it("accepts optional date_of_birth", () => {
-    expect(
-      csvRiderRowSchema.safeParse({ ...validRow, date_of_birth: "2015-03-10" }).success
-    ).toBe(true);
-  });
-
-  it("rejects missing first_name", () => {
-    expect(csvRiderRowSchema.safeParse({ ...validRow, first_name: "" }).success).toBe(false);
-  });
-
-  it("rejects missing group_name", () => {
-    expect(csvRiderRowSchema.safeParse({ ...validRow, group_name: "" }).success).toBe(false);
-  });
-
-  it("rejects missing parent_emails", () => {
-    expect(csvRiderRowSchema.safeParse({ ...validRow, parent_emails: "" }).success).toBe(false);
-  });
-});
-
-describe("csvAdultRowSchema", () => {
-  const validRow = {
-    full_name: "Coach Dave",
-    email: "dave@example.com",
-    roles: "roll_model",
-  };
-
-  it("accepts a valid adult CSV row", () => {
-    expect(csvAdultRowSchema.safeParse(validRow).success).toBe(true);
-  });
-
-  it("rejects invalid email", () => {
-    expect(csvAdultRowSchema.safeParse({ ...validRow, email: "not-email" }).success).toBe(false);
-  });
-
-  it("rejects empty roles", () => {
-    expect(csvAdultRowSchema.safeParse({ ...validRow, roles: "" }).success).toBe(false);
   });
 });
 
