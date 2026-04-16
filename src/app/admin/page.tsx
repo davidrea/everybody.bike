@@ -1,19 +1,13 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UserPlus, Bell } from "lucide-react";
+import { Users, Bell } from "lucide-react";
 import Link from "next/link";
 
 const adminSections = [
   {
-    title: "User Management",
-    description: "Manage users, roles, and invitations",
+    title: "People Management",
+    description: "Manage adults, minor riders, roles, and invitations",
     icon: Users,
-    href: "/admin/users",
-  },
-  {
-    title: "Invite Users",
-    description: "Send invitations to new members",
-    icon: UserPlus,
     href: "/admin/users",
   },
   {
