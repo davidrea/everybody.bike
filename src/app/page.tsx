@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import {
   Calendar,
@@ -11,6 +11,7 @@ import {
   GraduationCap,
   PartyPopper,
   HelpCircle,
+  LayoutDashboard,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUpcomingEvents } from "@/hooks/use-events";
 import { useAuth } from "@/hooks/use-auth";
 import { useMyRsvpsBulk } from "@/hooks/use-rsvp";
+import { useActiveRide } from "@/hooks/use-active-ride";
 import { EventCard } from "@/components/events/event-card";
+import { RideDashboard } from "@/components/events/ride-dashboard";
 import type { EventWithGroups } from "@/types";
 import Link from "next/link";
 
@@ -60,6 +63,10 @@ export default function DashboardPage() {
 
   const todayEvent = useMemo(() => findTodayEvent(upcomingEvents), [upcomingEvents]);
 
+  const isRM = hasRole("roll_model");
+  const activeRide = useActiveRide(isRM ? profile?.id : undefined);
+  const [showRideDashboard, setShowRideDashboard] = useState(false);
+
   const isLoading = authLoading || eventsLoading;
 
   return (
@@ -75,6 +82,15 @@ export default function DashboardPage() {
               : "Welcome to everybody.bike"}
           </p>
         </div>
+
+        {/* Ride Dashboard (Roll Models only, when active ride is in window) */}
+        {isRM && showRideDashboard && activeRide && profile && (
+          <RideDashboard
+            event={activeRide}
+            profile={profile}
+            onClose={() => setShowRideDashboard(false)}
+          />
+        )}
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -158,6 +174,19 @@ export default function DashboardPage() {
                     <ArrowRight className="mr-2 h-4 w-4" />
                     RSVP to Next Event
                   </Link>
+                </Button>
+              )}
+              {isRM && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  disabled={!activeRide}
+                  onClick={() => setShowRideDashboard((v) => !v)}
+                  title={!activeRide ? "No ride within 30 minutes" : undefined}
+                >
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  {showRideDashboard && activeRide ? "Hide Ride Dashboard" : "Show Ride Dashboard"}
                 </Button>
               )}
               {hasRole("parent") && (
