@@ -11,17 +11,6 @@ const looseUuid = z.string().regex(
 
 const relationshipEnum = z.enum(["parent", "guardian", "emergency_contact"]);
 
-const createRiderSchema = z.object({
-  first_name: z.string().trim().min(1).max(100),
-  last_name: z.string().trim().min(1).max(100),
-  date_of_birth: z.string().optional().or(z.literal("")),
-  group_id: looseUuid.optional(),
-  relationship: relationshipEnum.default("parent"),
-  is_primary: z.boolean().default(true),
-  medical_alerts: z.string().max(2000).optional().or(z.literal("")),
-  media_opt_out: z.boolean().default(false),
-});
-
 const updateRiderSchema = z.object({
   rider_id: looseUuid,
   first_name: z.string().trim().min(1).max(100),
@@ -101,89 +90,6 @@ export async function GET() {
     .filter(Boolean);
 
   return NextResponse.json(riders);
-}
-
-export async function POST(request: Request) {
-  const supabase = await createClient();
-  const admin = createAdminClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    logger.warn({ route: "POST /api/riders/mine" }, "Unauthenticated");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let payload: z.infer<typeof createRiderSchema>;
-  try {
-    payload = createRiderSchema.parse(await request.json());
-  } catch {
-    logger.warn({ route: "POST /api/riders/mine", userId: user.id }, "Validation failed");
-    return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
-  }
-
-  if (payload.group_id) {
-    const { data: group } = await supabase
-      .from("groups")
-      .select("id")
-      .eq("id", payload.group_id)
-      .maybeSingle();
-    if (!group) {
-      logger.warn({ route: "POST /api/riders/mine", userId: user.id, groupId: payload.group_id }, "Group not found");
-      return NextResponse.json({ error: "Group not found" }, { status: 404 });
-    }
-  }
-
-  const { data: existingProfile } = await supabase
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single();
-
-  // Ensure caller has parent role so existing RLS semantics still match.
-  if (existingProfile && !existingProfile.roles.includes("parent")) {
-    await admin
-      .from("profiles")
-      .update({ roles: [...new Set([...existingProfile.roles, "parent"])] })
-      .eq("id", user.id);
-  }
-
-  const { data: rider, error: riderError } = await admin
-    .from("riders")
-    .insert({
-      first_name: payload.first_name,
-      last_name: payload.last_name,
-      date_of_birth: payload.date_of_birth || null,
-      group_id: payload.group_id ?? null,
-      medical_notes: payload.medical_alerts?.trim() || null,
-      media_opt_out: payload.media_opt_out,
-    })
-    .select("id")
-    .single();
-
-  if (riderError || !rider) {
-    logger.error({ route: "POST /api/riders/mine", userId: user.id, err: riderError }, "Failed to create rider");
-    return NextResponse.json(
-      { error: riderError?.message ?? "Failed to create rider" },
-      { status: 500 },
-    );
-  }
-
-  const { error: linkError } = await admin.from("rider_parents").insert({
-    rider_id: rider.id,
-    parent_id: user.id,
-    relationship: payload.relationship,
-    is_primary: payload.is_primary,
-  });
-
-  if (linkError) {
-    logger.error({ route: "POST /api/riders/mine", userId: user.id, riderId: rider.id, err: linkError }, "Failed to link rider to parent");
-    return NextResponse.json({ error: linkError.message }, { status: 500 });
-  }
-
-  logger.info({ route: "POST /api/riders/mine", userId: user.id, riderId: rider.id }, "Rider created");
-  return NextResponse.json({ success: true, rider_id: rider.id });
 }
 
 export async function PATCH(request: Request) {

@@ -7,7 +7,6 @@ import {
   KeyRound,
   Loader2,
   Pencil,
-  Plus,
   RefreshCcw,
   Save,
   Trash2,
@@ -21,12 +20,10 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   type MyLinkedRider,
   type RiderParentRelationship,
-  useCreateMyRider,
   useMyRiders,
   useRemoveMyRiderLink,
   useUpdateMyRider,
 } from "@/hooks/use-my-riders";
-import { useGroups } from "@/hooks/use-groups";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -56,9 +53,7 @@ const relationshipOptions: {
 export default function ProfilePage() {
   const qc = useQueryClient();
   const { user, profile, loading } = useAuth();
-  const { data: groups } = useGroups();
   const { data: riders, isLoading: ridersLoading } = useMyRiders(user?.id);
-  const createRider = useCreateMyRider();
   const updateRider = useUpdateMyRider();
   const removeRiderLink = useRemoveMyRiderLink();
 
@@ -89,16 +84,6 @@ export default function ProfilePage() {
   const [calendarWebcalLink, setCalendarWebcalLink] = useState("");
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
   const [isRotatingCalendar, setIsRotatingCalendar] = useState(false);
-
-  const [newFirstName, setNewFirstName] = useState("");
-  const [newLastName, setNewLastName] = useState("");
-  const [newDob, setNewDob] = useState("");
-  const [newRelationship, setNewRelationship] =
-    useState<RiderParentRelationship>("parent");
-  const [newIsPrimary, setNewIsPrimary] = useState(true);
-  const [newGroupId, setNewGroupId] = useState("");
-  const [newMedicalAlerts, setNewMedicalAlerts] = useState("");
-  const [newMediaOptOut, setNewMediaOptOut] = useState(false);
 
   useEffect(() => {
     if (profile?.full_name) {
@@ -367,36 +352,6 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : "Failed to rotate calendar link");
     } finally {
       setIsRotatingCalendar(false);
-    }
-  }
-
-  async function handleAddRider() {
-    if (!newFirstName.trim() || !newLastName.trim()) {
-      toast.error("First and last name are required");
-      return;
-    }
-    try {
-      await createRider.mutateAsync({
-        first_name: newFirstName.trim(),
-        last_name: newLastName.trim(),
-        date_of_birth: newDob || undefined,
-        group_id: newGroupId || undefined,
-        relationship: newRelationship,
-        is_primary: newIsPrimary,
-        medical_alerts: newMedicalAlerts,
-        media_opt_out: newMediaOptOut,
-      });
-      toast.success("Youth rider added");
-      setNewFirstName("");
-      setNewLastName("");
-      setNewDob("");
-      setNewRelationship("parent");
-      setNewIsPrimary(true);
-      setNewGroupId("");
-      setNewMedicalAlerts("");
-      setNewMediaOptOut(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add rider");
     }
   }
 
@@ -721,106 +676,6 @@ export default function ProfilePage() {
                     </p>
                   )}
 
-                  <div className="rounded-md border p-3">
-                    <p className="mb-3 text-sm font-medium">Add Youth Rider</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label>First Name</Label>
-                        <Input
-                          value={newFirstName}
-                          onChange={(e) => setNewFirstName(e.target.value)}
-                          placeholder="First name"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Last Name</Label>
-                        <Input
-                          value={newLastName}
-                          onChange={(e) => setNewLastName(e.target.value)}
-                          placeholder="Last name"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Date of Birth</Label>
-                        <Input
-                          type="date"
-                          value={newDob}
-                          onChange={(e) => setNewDob(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Group (optional)</Label>
-                        <Select value={newGroupId} onValueChange={setNewGroupId}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select group" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {groups?.map((group) => (
-                              <SelectItem key={group.id} value={group.id}>
-                                {group.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Relationship</Label>
-                        <Select
-                          value={newRelationship}
-                          onValueChange={(value) =>
-                            setNewRelationship(value as RiderParentRelationship)
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {relationshipOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center gap-2 pb-2">
-                          <Switch
-                            checked={newIsPrimary}
-                            onCheckedChange={setNewIsPrimary}
-                          />
-                          <Label>Primary contact</Label>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5 sm:col-span-2">
-                        <Label>Medical Alerts</Label>
-                        <Textarea
-                          value={newMedicalAlerts}
-                          onChange={(e) => setNewMedicalAlerts(e.target.value)}
-                          placeholder="Allergies, medications, emergency considerations..."
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center gap-2 pb-2">
-                          <Switch
-                            checked={newMediaOptOut}
-                            onCheckedChange={setNewMediaOptOut}
-                          />
-                          <Label>Media opt-out</Label>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        onClick={handleAddRider}
-                        disabled={createRider.isPending}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        {createRider.isPending ? "Adding..." : "Add Youth Rider"}
-                      </Button>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             )}
