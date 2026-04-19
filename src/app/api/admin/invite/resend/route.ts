@@ -59,23 +59,19 @@ export async function POST(request: Request) {
     );
   }
 
+  const admin = createAdminClient();
   const callbackUrl = new URL("/auth/callback", getBaseUrl(request)).toString();
   const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabase.auth.signInWithOtp({
-    email: targetProfile.email,
-    options: {
-      emailRedirectTo: callbackUrl,
-      data: { auth_email_expires_at: expiresAt },
-      shouldCreateUser: false,
-    },
+  const { error } = await admin.auth.admin.inviteUserByEmail(targetProfile.email, {
+    redirectTo: callbackUrl,
+    data: { auth_email_expires_at: expiresAt },
   });
 
   if (error) {
-    logger.error({ route: ROUTE, userId: user.id, targetUserId: user_id, err: error }, 'Failed to resend invite OTP');
+    logger.error({ route: ROUTE, userId: user.id, targetUserId: user_id, err: error }, 'Failed to resend invite');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const admin = createAdminClient();
   // Update invited_at
   await admin
     .from("profiles")

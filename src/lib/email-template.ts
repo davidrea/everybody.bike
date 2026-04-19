@@ -60,6 +60,7 @@ export function renderBrandedEmail(options: BrandedEmailOptions) {
             <tr>
               <td style="background-color:#2d5016;padding:18px 24px;border-radius:12px 12px 0 0;">
                 <p style="margin:0;font-size:14px;line-height:20px;color:#d6f5c2;font-weight:700;letter-spacing:0.4px;">EVERYBODY.BIKE</p>
+                <p style="margin:2px 0 0 0;font-size:11px;line-height:16px;color:#a3d977;font-weight:400;letter-spacing:0.2px;">a service of the Rootz MTB Club</p>
               </td>
             </tr>
             <tr>
@@ -91,7 +92,7 @@ export function renderBrandedEmail(options: BrandedEmailOptions) {
             <tr>
               <td style="padding:0 20px 20px 20px;">
                 <p style="margin:0;font-size:12px;line-height:18px;color:#78716c;word-break:break-word;overflow-wrap:anywhere;">
-                  everybody.bike<br />
+                  everybody.bike — a service of the Rootz MTB Club<br />
                   <a href="${safeSiteUrl}" style="color:#2d5016;text-decoration:underline;word-break:break-all;">${safeSiteUrl}</a>
                 </p>
               </td>
@@ -107,7 +108,12 @@ export function renderBrandedEmail(options: BrandedEmailOptions) {
   if (options.actionUrl) {
     textParts.push("", options.actionUrl);
   }
-  textParts.push("", reasonText, "", `everybody.bike: ${options.siteUrl}`);
+  textParts.push(
+    "",
+    reasonText,
+    "",
+    `everybody.bike — a service of the Rootz MTB Club: ${options.siteUrl}`,
+  );
 
   return {
     html,

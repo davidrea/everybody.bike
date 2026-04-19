@@ -243,7 +243,9 @@ describe("renderBrandedEmail — text output", () => {
 
   it("includes site URL in plain text footer", () => {
     const { text } = renderBrandedEmail(base);
-    expect(text).toContain("everybody.bike: https://everybody.bike");
+    expect(text).toContain(
+      "everybody.bike — a service of the Rootz MTB Club: https://everybody.bike",
+    );
   });
 
   it("includes action URL in plain text when provided", () => {

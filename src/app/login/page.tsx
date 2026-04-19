@@ -170,7 +170,12 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
             <Bike className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">everybody.bike</h1>
+          <h1 className="font-heading text-3xl font-bold tracking-tight">
+            everybody.bike
+            <span className="ml-2 align-middle text-sm font-normal tracking-normal text-muted-foreground">
+              from Rootz
+            </span>
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">Mountain bike club hub</p>
         </div>
 

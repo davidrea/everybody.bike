@@ -40,6 +40,9 @@ export function Header() {
           </div>
           <span className="font-heading text-lg font-bold tracking-tight hidden sm:inline">
             everybody.bike
+            <span className="ml-2 text-xs font-normal tracking-normal text-muted-foreground">
+              from Rootz
+            </span>
           </span>
         </Link>
 
