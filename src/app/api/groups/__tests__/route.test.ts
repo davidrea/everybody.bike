@@ -28,6 +28,7 @@ function mockQuery(data: unknown, error: unknown = null) {
   obj.delete = vi.fn().mockReturnValue(obj);
   obj.insert = vi.fn().mockReturnValue(obj);
   obj.order = vi.fn().mockReturnValue(obj);
+  obj.limit = vi.fn().mockReturnValue(obj);
   obj.single = vi.fn().mockResolvedValue(result);
   obj.maybeSingle = vi.fn().mockResolvedValue(result);
   obj.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
