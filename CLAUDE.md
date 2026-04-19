@@ -133,18 +133,17 @@ Adults log in and interact with the app directly. Each adult can hold **any comb
   - Only those who **have not** RSVP'd to a specific event.
 - Users manage their own notification preferences (opt-in/out by category).
 
-### 7. CSV Import
+### 7. Bulk Onboarding (CLI-only)
 
-- Admins can bulk-import users and riders via CSV upload.
-- Supported CSV formats:
-  - **Riders**: first name, last name, date of birth, group name, parent email(s).
-  - **Adults** (Roll Models, Parents): full name, email, role(s).
-- **Deduplication logic**:
-  - Adults are matched by **email address** (case-insensitive). If a matching profile exists, roles are merged (unioned) rather than creating a duplicate.
-  - Minor riders are matched by **first name + last name + date of birth** within the same parent. If a match exists, the record is updated rather than duplicated.
-  - Roll Models referenced in a rider CSV (by email) are linked to existing profiles if they already exist.
-- Import provides a **preview step** showing what will be created, updated, or skipped, before committing changes.
-- Import errors (invalid emails, missing required fields, unknown group names) are reported per-row with the option to fix and retry.
+The in-app CSV import UI has been removed. Bulk onboarding is handled via `scripts/club-cli.js` run against a super_admin account, matched to the club's ROOTZ registration export format. Two Claude slash commands wrap it:
+
+- `/import-roll-models` — imports adult Roll Models
+- `/import-riders` — imports minor riders + creates/links parent profiles
+
+Deduplication behavior:
+- Adults are matched by **email address** (case-insensitive); roles are merged (unioned) on match.
+- Minor riders are matched by **first name + last name + date of birth**; updates rather than duplicates.
+- Roll Models referenced in rider rows (by email) are linked to existing profiles if present.
 - New parents discovered during rider import are automatically invited via email.
 
 ### 8. PWA
@@ -219,6 +218,9 @@ Adults log in and interact with the app directly. Each adult can hold **any comb
 | **supavisor** | supabase/supavisor | Connection pooler |
 | **cron** | alpine + crond | Notification dispatch (every 2 min) |
 | **migrate** | postgres (profile) | On-demand app migration runner |
+| **cloudflared** | cloudflare/cloudflared | HTTPS ingress tunnel (uses `CLOUDFLARE_TUNNEL_TOKEN`) |
+| **loki** | grafana/loki | Structured log ingest (app logs via pino) |
+| **grafana** | grafana/grafana | Log browsing UI (Loki data source pre-provisioned) |
 
 ### Internal Routing
 
@@ -236,7 +238,25 @@ Environment variables are managed via `.env` files (not committed; `.env.product
 
 ---
 
-## Recent Updates (2026-02-11)
+## Recent Updates (2026-04-19)
+
+- **Ride Dashboard on home page**: new Roll Model–facing dashboard surfacing the current/active ride's attendance, groups, and ratios. Auto-shown when an active ride is detected.
+- **Event cancellation**: cancel a single occurrence or entire series (`/api/events/[id]/cancel`, migration `20260214103000_event_cancellation.sql`). Cancellation triggers push notifications to affected RSVPs.
+- **Calendar feed**: per-user iCal subscription URLs. `calendar_feed_tokens` table + `/api/calendar/[token]` + `/api/calendar/feed` + `components/events/calendar-feed-links.tsx`.
+- **CSV import removed from web UI**: bulk onboarding is now CLI-only via `scripts/club-cli.js`, wrapped by `/import-roll-models` and `/import-riders` slash commands. `admin/import/page.tsx` no longer exists.
+- **User management UX**: filter bar + combined people tabs (adults + riders), consolidated nav (removed redundant user-admin/invite blocks).
+- **Groups**: drag-and-drop reordering via `@dnd-kit` (replaces index-number reordering).
+- **Events**: RSVP indicators on list cards; group pills wrap below the date row; header badge + action button alignment fixes.
+- **Notifications**: sent to all accounts regardless of invite acceptance status. More persistent "enable notifications" reminder.
+- **Logging**: app emits structured JSON via `pino` (`src/lib/logger.ts`); Loki ingest + Grafana UI added to compose stack.
+- **Cloudflare Tunnel**: now a first-class `cloudflared` service in `docker-compose.yml`.
+- **Onboarding**: passkey registration removed from invite name-setup step (was confusing). Name is prepopulated. Fixed repeated-onboarding bug.
+- **Schema**: `riders.emergency_contact` dropped (migration `20260411000000_drop_riders_emergency_contact.sql`) — emergency contact info lives on linked parent profiles.
+- **Testing**: initial Vitest suite in place — ~20 test files across route handlers, hooks, and `src/lib/*` (push, email, validators, rate-limit, recurrence, passkey, logger, etc.).
+- **Dev tooling**: `justfile` task runner; `scripts/cron-entrypoint.sh` for the cron container; `scripts/verify-smtp.js` for pre-deploy SMTP checks.
+- **Sorting**: consistent first-name ordering across adults and riders.
+
+### Previous (2026-02-11)
 
 - **Security hardening pass completed** across auth, RLS, input validation, and headers (`20260211000000_security_hardening.sql` + app changes).
 - **Rate limiting added at three layers**: GoTrue config, Kong gateway, and app-level route limits for invite/passkey/push endpoints.
@@ -302,10 +322,10 @@ riders
   last_name       TEXT NOT NULL
   group_id        UUID FK -> groups(id)
   date_of_birth   DATE
-  emergency_contact TEXT
   medical_notes   TEXT
   created_at      TIMESTAMPTZ
   updated_at      TIMESTAMPTZ
+  -- emergency_contact dropped in 20260411000000; emergency contact lives on parent profile(s)
 
 rider_parents (join table — many-to-many between riders and parent profiles)
   rider_id        UUID FK -> riders(id) ON DELETE CASCADE
@@ -435,8 +455,8 @@ All schema changes are managed via **Supabase CLI migrations** (`supabase migrat
   5. Commit the migration file to version control.
   6. In CI/production: `supabase db push` applies pending migrations.
 - RLS policies, functions, triggers, and indexes should all be defined in migrations — not applied manually.
-- The initial migration (`00001_initial_schema.sql`) creates all baseline tables, indexes, RLS policies, and the `rider_parents` join table.
-- Subsequent migrations handle schema evolution as features are added.
+- The initial migration (`20260208215707_initial_schema.sql`) creates all baseline tables, indexes, RLS policies, and the `rider_parents` join table.
+- Subsequent migrations (11 total as of 2026-04-19) handle schema evolution: admin RSVP policies, roll-model group assignment, medical alerts/media opt-out, event notification scheduling, passkey names, calendar feed tokens, security hardening, applied-migrations RLS, event cancellation, riders emergency_contact drop.
 
 ---
 
@@ -505,8 +525,7 @@ everybody.bike/
 │   │   │   └── [id]/page.tsx
 │   │   ├── admin/
 │   │   │   ├── page.tsx            # Admin dashboard
-│   │   │   ├── users/page.tsx      # User management + invites
-│   │   │   ├── import/page.tsx     # CSV import wizard
+│   │   │   ├── users/page.tsx      # User management + invites (with filter bar, combined people tabs)
 │   │   │   └── notifications/page.tsx
 │   │   └── api/                    # ~40 API route handlers (BFF pattern)
 │   │       ├── auth/               # me, sign-out, passkey/*
@@ -518,13 +537,15 @@ everybody.bike/
 │   │       ├── passkeys/           # list, delete
 │   │       ├── roll-model-groups/  # mine
 │   │       ├── notifications/      # subscribe, unsubscribe, vapid, preferences
-│   │       └── admin/              # users, riders, invite, import, notifications, dispatch
+│   │       ├── calendar/           # [token] + feed (per-user iCal subscription)
+│   │       ├── events/[id]/        # dashboard, cancel, notifications (schedule)
+│   │       └── admin/              # users, riders, invite, notifications, dispatch
 │   ├── components/
 │   │   ├── ui/                  # shadcn/ui primitives (~25 components)
 │   │   ├── events/              # event-card, event-form, event-dashboard, event-report, etc.
 │   │   ├── rsvp/                # rsvp-controls, rsvp-button-group
 │   │   ├── groups/              # group-list, group-form, member-assignment-dialog
-│   │   ├── admin/               # user-list, invite-form, csv-import, notification-scheduler
+│   │   ├── admin/               # user-list, people-tabs, invite-form, adult-editor, rider-list, notification-scheduler
 │   │   ├── notifications/       # notification-preferences
 │   │   ├── safety/              # safety-indicators (medical alerts, media opt-out)
 │   │   └── layout/              # app-shell, header, sidebar, bottom-nav, theme-provider
@@ -537,7 +558,12 @@ everybody.bike/
 │   │   │   └── types.ts         # Generated Supabase DB types
 │   │   ├── validators.ts        # Zod v4 schemas (looseUuid for seed data compat)
 │   │   ├── utils.ts             # cn(), formResolver() (Zod v4 compat shim)
-│   │   ├── csv-parser.ts        # CSV import parsing
+│   │   ├── age.ts               # Age-from-DOB helper
+│   │   ├── email.ts             # Nodemailer transport
+│   │   ├── email-template.ts    # Branded email HTML builder
+│   │   ├── event-notifications.ts # Event create/update/cancel notification fan-out
+│   │   ├── logger.ts            # pino logger (ships to Loki in prod)
+│   │   ├── rate-limit.ts        # App-layer rate limiting (invite/passkey/push)
 │   │   ├── recurrence.ts        # RRULE expansion/helpers
 │   │   ├── passkey.ts           # WebAuthn RP ID/origin derivation
 │   │   ├── push.ts              # Client-side push utilities
@@ -571,7 +597,12 @@ everybody.bike/
 │   └── storage/                 # File storage data (gitignored)
 ├── scripts/
 │   ├── generate-keys.sh         # Generate all Supabase infrastructure secrets
-│   └── crontab                  # Cron schedule for notification dispatch
+│   ├── crontab                  # Cron schedule for notification dispatch
+│   ├── cron-entrypoint.sh       # Cron container entrypoint
+│   ├── bootstrap-admin.sh       # First super_admin bootstrap (local + prod)
+│   ├── verify-smtp.js           # Pre-deploy SMTP sanity check
+│   └── club-cli.js              # Bulk roll-model / rider import (replaces web CSV UI)
+├── justfile                     # Task runner (dev-setup, dev-test, etc.)
 └── vitest.config.ts
 ```
 
@@ -665,7 +696,7 @@ npm run format
 - [x] Event dashboard (role-aware views + ratio indicator).
 - [x] Event report (printable roster + safety flags).
 - [x] Group management and assignment (minor + adult riders, roll models).
-- [x] CSV import with deduplication + preview + auto-invites.
+- [x] Bulk import with deduplication + auto-invites (CLI via `scripts/club-cli.js`; web UI removed).
 - [x] User invite flow and management (roles, resend, status).
 - [x] Profile management (name/email, linked riders, medical alerts, media opt-out).
 - [x] Safety indicators (medical alerts + media opt-out badges).
@@ -691,8 +722,10 @@ npm run format
 - [x] Security hardening migration + app-layer hardening pass (auth, RLS, validation, headers).
 - [x] Multi-layer rate limiting (GoTrue, Kong, and app route handlers).
 - [x] Migration tracking moved to private `_migrations` schema with RLS.
-- [ ] Cloudflare Tunnel service added to Docker Compose.
-- [ ] Comprehensive test suite (unit, integration, e2e).
+- [x] Cloudflare Tunnel service added to Docker Compose (`cloudflared`).
+- [x] Loki + Grafana log ingest stack (app logs via `pino`).
+- [x] Initial test suite: ~20 Vitest files covering route handlers, hooks, and `src/lib/*`.
+- [ ] Comprehensive test coverage (e2e with Playwright, migration/RLS depth).
 - [ ] Offline support and sync (queued RSVPs).
 - [ ] Performance optimization (Lighthouse audit).
 - [ ] CI/CD pipeline.
@@ -700,11 +733,10 @@ npm run format
 
 ---
 
-## Open Issues (as of 2026-02-11)
+## Open Issues (as of 2026-04-19)
 
-- Cloudflare Tunnel service is still not represented as a first-class service in `docker-compose.yml`.
 - Service worker offline cache and offline-first UX are still incomplete (`app shell + recent data + RSVP queue/sync`).
-- Test coverage goals are not yet fully met (unit/integration/e2e + migration/RLS test depth).
+- Test coverage needs to grow: no Playwright e2e yet, no pgTAP/migration/RLS tests, coverage targets not measured.
 - CI/CD pipeline is still pending.
 - SMTP provider setup remains partially blocked by Mailgun domain/sender verification.
 - Formal Lighthouse performance pass and follow-up optimizations are still pending.

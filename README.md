@@ -9,7 +9,10 @@ The scheduling and communications hub for a teaching mountain bike club. Built f
 - **Events & RSVPs** — Create rides, clinics, and social events. Roll Models and adult riders RSVP for themselves; parents RSVP for their kids.
 - **Groups** — Organize riders by age or skill level. Assign coaches. Target events and notifications to specific groups.
 - **Push Notifications** — Reminders, updates, and custom messages delivered straight to phones via the Web Push API. No app store required.
-- **CSV Import** — Bulk onboard riders, parents, and coaches from a spreadsheet with smart deduplication.
+- **Ride Dashboard** — Live home-page view for Roll Models during an active ride: who's here, who's missing, group ratios.
+- **Event Cancellation** — Cancel a single occurrence or a whole series; cancellation notifications go out automatically.
+- **Calendar Feed** — Per-user iCal subscription URL so events land in Google/Apple Calendar.
+- **Bulk Onboarding** — Import roll models and riders from the club's registration CSV via `scripts/club-cli.js` (with dedup + auto-invite).
 - **Passwordless Auth** — Magic link and passkey login. No passwords to forget (or leak).
 
 ## Tech Stack
@@ -19,7 +22,8 @@ The scheduling and communications hub for a teaching mountain bike club. Built f
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui |
 | Backend | Supabase (PostgreSQL, Auth, Realtime, Storage) |
 | Push | Web Push API with VAPID |
-| Infrastructure | Docker Compose (self-hosted Supabase) |
+| Infrastructure | Docker Compose (self-hosted Supabase + Cloudflare Tunnel + Loki/Grafana) |
+| Testing | Vitest (unit + integration route handlers) |
 
 ## Getting Started
 
@@ -28,6 +32,7 @@ The scheduling and communications hub for a teaching mountain bike club. Built f
 - [Node.js](https://nodejs.org/) 22+
 - [Supabase CLI](https://supabase.com/docs/guides/cli) (`npm install -g supabase`)
 - [Docker](https://docs.docker.com/get-docker/) (for local Supabase stack and production deployment)
+- [`just`](https://github.com/casey/just) (optional) — convenience task runner; see `justfile` for common commands (`just dev-setup`, `just dev-test`, etc.)
 
 ### Local Development Setup
 
@@ -77,16 +82,18 @@ The production stack runs as Docker Compose services on a VPS:
 ```
   Internet
      │
-  Cloudflare Tunnel (HTTPS)
+  Cloudflare Tunnel (cloudflared container, HTTPS)
      │
      ├── everybody.bike     → app:3000   (Next.js)
      └── api.everybody.bike → kong:8000  (Supabase API Gateway)
 
   Internal Docker network:
-     kong → auth, rest, realtime, storage
-     app  → kong (server-side, via SUPABASE_URL)
-     db   ← all services
-     cron → app (notification dispatch every 2 min)
+     kong  → auth, rest, realtime, storage
+     app   → kong (server-side, via SUPABASE_URL)
+     db    ← all services
+     cron  → app (notification dispatch every 2 min)
+     loki  ← app (structured log ingest via pino)
+     grafana → loki (log browsing UI)
 ```
 
 ### First-Time Setup
@@ -142,7 +149,7 @@ bash scripts/bootstrap-admin.sh --email you@example.com --name "Your Name"
 
 ### Cloudflare Tunnel
 
-Add a `cloudflared` service to your `docker-compose.yml` (or run it separately) that maps:
+A `cloudflared` service is included in `docker-compose.yml`. Configure your tunnel in the Cloudflare dashboard to map:
 
 | Public hostname | Service | Port |
 |----------------|---------|------|
@@ -150,6 +157,10 @@ Add a `cloudflared` service to your `docker-compose.yml` (or run it separately) 
 | `api.everybody.bike` | `kong` | 8000 |
 
 Set `CLOUDFLARE_TUNNEL_TOKEN` in your `.env`.
+
+### Logging (Loki + Grafana)
+
+The app emits structured JSON logs via `pino`. A `loki` container ingests them and `grafana` provides a browsing UI (provisioned with a Loki data source via `volumes/grafana/provisioning/`). Both run as part of the default compose stack.
 
 ### Updating
 
