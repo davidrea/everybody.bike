@@ -65,7 +65,9 @@ export default function DashboardPage() {
 
   const isRM = hasRole("roll_model");
   const activeRide = useActiveRide(isRM ? profile?.id : undefined);
-  const [showRideDashboard, setShowRideDashboard] = useState(false);
+  // Default ON: when an active ride is detected, the dashboard shows automatically.
+  // The X in the card header (or this toggle) hides it.
+  const [showRideDashboard, setShowRideDashboard] = useState(true);
 
   const isLoading = authLoading || eventsLoading;
 
