@@ -3,18 +3,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@supabase/supabase-js";
-
-interface Profile {
-  id: string;
-  full_name: string;
-  email: string;
-  roles: string[];
-  rider_group_id: string | null;
-  avatar_url: string | null;
-  invite_status: string;
-  medical_alerts: string | null;
-  media_opt_out: boolean;
-}
+import type { Profile } from "@/types";
 
 interface AuthData {
   user: User | null;
