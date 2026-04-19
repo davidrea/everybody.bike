@@ -74,9 +74,9 @@ export async function GET(
       riderRsvpIds.length
         ? supabase
             .from("riders")
-            .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
+            .select("id, first_name, last_name, group_id, date_of_birth, medical_notes, media_opt_out")
             .in("id", riderRsvpIds)
-        : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; group_id: string | null; medical_notes: string | null; media_opt_out: boolean }[] }),
+        : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; group_id: string | null; date_of_birth: string | null; medical_notes: string | null; media_opt_out: boolean }[] }),
       supabase
         .from("profiles")
         .select("id, full_name, avatar_url, medical_alerts, media_opt_out, roles, rider_group_id")
@@ -190,6 +190,7 @@ export async function GET(
           group_id: r.group_id,
           group_name: g.name,
           is_minor: true,
+          date_of_birth: r.date_of_birth,
           status: (riderRsvpMap.get(r.id) ?? null) as string | null,
           medical_alerts: r.medical_notes,
           media_opt_out: r.media_opt_out,
@@ -206,6 +207,7 @@ export async function GET(
           group_id: r.rider_group_id,
           group_name: g.name,
           is_minor: false,
+          date_of_birth: null,
           status: (selfRsvpMap.get(r.id)?.status ?? null) as string | null,
           medical_alerts: r.medical_alerts,
           media_opt_out: r.media_opt_out,
@@ -279,7 +281,7 @@ export async function GET(
       .overlaps("roles", ["roll_model", "admin", "super_admin"]),
     supabase
       .from("riders")
-      .select("id, first_name, last_name, group_id, medical_notes, media_opt_out")
+      .select("id, first_name, last_name, group_id, date_of_birth, medical_notes, media_opt_out")
       .in("group_id", groupIds),
     supabase
       .from("profiles")
@@ -301,6 +303,7 @@ export async function GET(
     first_name: string;
     last_name: string;
     group_id: string | null;
+    date_of_birth: string | null;
     medical_notes: string | null;
     media_opt_out: boolean;
   }[]) ?? [];
@@ -381,6 +384,7 @@ export async function GET(
         group_id: r.group_id,
         group_name: g.name,
         is_minor: true,
+        date_of_birth: r.date_of_birth,
         status: (riderRsvpMap.get(r.id) ?? null) as string | null,
         medical_alerts: r.medical_notes,
         media_opt_out: r.media_opt_out,
@@ -395,6 +399,7 @@ export async function GET(
         group_id: r.rider_group_id,
         group_name: g.name,
         is_minor: false,
+        date_of_birth: null,
         status: (selfRsvpMap.get(r.id)?.status ?? null) as string | null,
         medical_alerts: r.medical_alerts,
         media_opt_out: r.media_opt_out,
