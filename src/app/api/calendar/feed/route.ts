@@ -134,7 +134,7 @@ export async function GET(request: Request) {
   const { data: events, error: eventsError } = await admin
     .from("events")
     .select(
-      "id, title, description, location, map_url, starts_at, ends_at, updated_at, event_groups(group_id, groups(name))",
+      "id, title, description, location, map_url, starts_at, ends_at, updated_at, canceled_at, event_groups(group_id, groups(name))",
     )
     .gte("starts_at", from.toISOString())
     .lte("starts_at", to.toISOString())
@@ -209,7 +209,8 @@ export async function GET(request: Request) {
 
     const selfStatus = rsvpMap.get(event.id);
     const summaryStatus = selfStatus ? ` [RSVP: ${RSVP_LABELS[selfStatus] ?? "No response"}]` : "";
-    const summary = `${event.title}${summaryStatus}`;
+    const cancelPrefix = event.canceled_at ? "CANCELED: " : "";
+    const summary = `${cancelPrefix}${event.title}${summaryStatus}`;
 
     const descriptionLines: string[] = [];
     if (event.description) {

@@ -92,7 +92,7 @@ export async function GET(
   const { data: allEvents, error } = await supabase
     .from("events")
     .select(
-      "id, title, description, location, starts_at, ends_at, event_groups(group_id)",
+      "id, title, description, location, starts_at, ends_at, canceled_at, event_groups(group_id)",
     )
     .order("starts_at", { ascending: true });
 
@@ -139,7 +139,8 @@ export async function GET(
     lines.push(`DTSTAMP:${dtstamp}`);
     lines.push(`DTSTART:${dtstart}`);
     lines.push(`DTEND:${dtend}`);
-    lines.push(foldLine(`SUMMARY:${escapeIcal(event.title)}`));
+    const title = event.canceled_at ? `CANCELED: ${event.title}` : event.title;
+    lines.push(foldLine(`SUMMARY:${escapeIcal(title)}`));
     if (event.description) {
       lines.push(foldLine(`DESCRIPTION:${escapeIcal(event.description)}`));
     }
