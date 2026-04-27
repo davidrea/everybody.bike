@@ -78,6 +78,9 @@ function AuthCallbackInner() {
         .single();
 
       if (profile?.invite_status === "pending") {
+        // Mark accepted immediately on first authentication so the user isn't
+        // trapped in the onboarding loop if they close the browser mid-wizard.
+        await fetch("/api/onboarding/complete", { method: "POST" });
         router.replace("/onboarding");
         return;
       }

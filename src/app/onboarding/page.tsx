@@ -311,7 +311,6 @@ export default function OnboardingPage() {
                           value={rider.firstName}
                           onChange={(e) => updateRider(i, "firstName", e.target.value)}
                           placeholder="First"
-                          required
                         />
                       </div>
                       <div className="space-y-1">
@@ -321,7 +320,6 @@ export default function OnboardingPage() {
                           value={rider.lastName}
                           onChange={(e) => updateRider(i, "lastName", e.target.value)}
                           placeholder="Last"
-                          required
                         />
                       </div>
                     </div>
