@@ -49,6 +49,7 @@ services:
           minute: 20
           hour: 100
           policy: local
+          limit_by: ip
           fault_tolerant: true
           hide_client_headers: false
   - name: auth-v1-open-callback
@@ -65,6 +66,7 @@ services:
           minute: 20
           hour: 100
           policy: local
+          limit_by: ip
           fault_tolerant: true
           hide_client_headers: false
   - name: auth-v1-open-authorize
@@ -81,6 +83,7 @@ services:
           minute: 20
           hour: 100
           policy: local
+          limit_by: ip
           fault_tolerant: true
           hide_client_headers: false
 
@@ -106,9 +109,10 @@ services:
             - anon
       - name: rate-limiting
         config:
-          minute: 60
-          hour: 500
+          minute: 120
+          hour: 1000
           policy: local
+          limit_by: ip
           fault_tolerant: true
           hide_client_headers: false
 

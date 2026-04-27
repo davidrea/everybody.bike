@@ -16,6 +16,17 @@ export async function updateSession(request: NextRequest) {
 
   const acceptsHtml = request.headers.get("accept")?.includes("text/html") ?? false;
 
+  // Public routes that don't require authentication
+  const publicPaths = [
+    "/login",
+    "/auth/callback",
+    "/api/auth/passkey/login",
+    "/api/auth/passkey/login/verify",
+    "/api/admin/notifications/dispatch",
+    "/api/calendar/feed",
+  ];
+  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -41,31 +52,23 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Refresh session — this must be called so the session cookie is refreshed.
-  // Do not remove this line.
+  // On public paths we only need to know if the user *might* be signed in
+  // (e.g. to bounce them off /login). getSession() reads from the cookie and
+  // only refreshes when the access token is expired, avoiding a /auth/v1/user
+  // round-trip on every anonymous page load. Protected paths still validate
+  // via getUser() so we can't be spoofed by a forged session cookie.
   let user: { id: string } | null = null;
-  if (acceptsHtml) {
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    user = authUser ?? null;
-  } else {
+  if (isPublicPath || !acceptsHtml) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
     user = session?.user ?? null;
+  } else {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    user = authUser ?? null;
   }
-
-  // Public routes that don't require authentication
-  const publicPaths = [
-    "/login",
-    "/auth/callback",
-    "/api/auth/passkey/login",
-    "/api/auth/passkey/login/verify",
-    "/api/admin/notifications/dispatch",
-    "/api/calendar/feed",
-  ];
-  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   // If not authenticated and not on a public path, redirect to login
   if (!user && !isPublicPath) {

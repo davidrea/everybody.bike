@@ -44,12 +44,9 @@ export default function LoginPage() {
       return;
     }
 
-    void supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        window.location.replace("/");
-      }
-    });
-
+    // Server middleware handles redirecting already-authenticated users away
+    // from /login. We only listen for a fresh sign-in (passkey/OTP) here so
+    // we can navigate post-login without a separate getUser() round-trip.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
