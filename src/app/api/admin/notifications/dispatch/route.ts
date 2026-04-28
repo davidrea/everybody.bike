@@ -365,7 +365,7 @@ export async function POST(request: Request) {
     }
 
     const fallbackUsers = optedInUsers.filter(
-      (id) => !usersWithSuccess.has(id) && !usersWithSubscriptions.has(id),
+      (id) => !usersWithSuccess.has(id),
     );
 
     if (fallbackUsers.length > 0) {
